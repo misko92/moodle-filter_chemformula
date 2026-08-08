@@ -1,0 +1,26 @@
+/*
+ * Stacks the mass number and atomic number of a full nuclear symbol
+ * (e.g. "238/92U") vertically, one above the other, immediately to the
+ * left of the element symbol - matching conventional nuclear notation.
+ * Plain sequential <sup>/<sub> can only place them one after another
+ * horizontally, so this wraps both in a single-column flex container
+ * that overrides their default vertical positioning.
+ */
+.filter-chemformula-nuclide {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+    line-height: 1;
+    vertical-align: middle;
+    margin-right: 0.05em;
+}
+
+.filter-chemformula-nuclide sup,
+.filter-chemformula-nuclide sub {
+    display: block;
+    position: static;
+    font-size: 0.65em;
+    line-height: 1;
+    vertical-align: baseline;
+}

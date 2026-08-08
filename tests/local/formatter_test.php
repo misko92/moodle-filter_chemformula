@@ -1,0 +1,276 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+namespace filter_chemformula\local;
+
+/**
+ * Unit tests for the pure filter_chemformula formatter.
+ *
+ * Mirrors the case set that used to live in tiny_chemformula's jest
+ * suite (tests/jest/formatter.test.js), since this class is a direct
+ * PHP port of that plugin's amd/src/formatter.js.
+ *
+ * @package    filter_chemformula
+ * @category   test
+ * @copyright  2026 Moodle
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @covers     \filter_chemformula\local\formatter
+ */
+final class formatter_test extends \basic_testcase {
+
+    public function test_simple_formulas(): void {
+        $this->assertSame('H<sub>2</sub>O', formatter::format('H2O'));
+        $this->assertSame('CO<sub>2</sub>', formatter::format('CO2'));
+        $this->assertSame('O<sub>2</sub>', formatter::format('O2'));
+        $this->assertSame('2H<sub>2</sub>O', formatter::format('2H2O'));
+        $this->assertSame('12H<sub>2</sub>O', formatter::format('12H2O'));
+    }
+
+    public function test_complex_formulas_with_groups(): void {
+        $this->assertSame('Fe<sub>2</sub>(SO<sub>4</sub>)<sub>3</sub>', formatter::format('Fe2(SO4)3'));
+        $this->assertSame('Mg(OH)<sub>2</sub>', formatter::format('Mg(OH)2'));
+        $this->assertSame('K<sub>4</sub>[Fe(CN)<sub>6</sub>]', formatter::format('K4[Fe(CN)6]'));
+    }
+
+    public function test_ionic_charges(): void {
+        $this->assertSame('Ca<sup>2+</sup>', formatter::format('Ca2+'));
+        $this->assertSame('Na<sup>+</sup>', formatter::format('Na+'));
+        $this->assertSame('Cl<sup>-</sup>', formatter::format('Cl-'));
+        $this->assertSame('SO<sub>4</sub><sup>2-</sup>', formatter::format('SO4^2-'));
+        $this->assertStringNotContainsString('^', formatter::format('SO4^2-'));
+    }
+
+    public function test_sign_first_charges_are_recognised_and_normalised(): void {
+        // Charges may be written magnitude-then-sign ("2+") or
+        // sign-then-magnitude ("+2"); both must be recognised, and both
+        // must render in the conventional magnitude-then-sign order.
+        $this->assertSame('Mg<sup>2+</sup>', formatter::format('Mg+2'));
+        $this->assertSame('Mg<sup>2+</sup>', formatter::format('Mg2+'));
+        $this->assertSame('Cl<sup>+</sup>', formatter::format('Cl+'));
+        $this->assertSame('H<sub>3</sub>O<sup>1+</sup>', formatter::format('H3O+1'));
+        $this->assertSame('H<sub>3</sub>O<sup>1+</sup>', formatter::format('H3O1+'));
+        $this->assertSame('SO<sub>4</sub><sup>2+</sup>', formatter::format('SO4^+2'));
+        $this->assertSame('SO<sub>4</sub><sup>2+</sup>', formatter::format('SO4^2+'));
+    }
+
+    public function test_isotopes(): void {
+        $this->assertSame('<sup>238</sup>U', formatter::format('U-238'));
+        $this->assertSame('<sup>238</sup>U', formatter::format('238-U'));
+        $this->assertSame('<sup>14</sup>C', formatter::format('C-14'));
+    }
+
+    public function test_element_digit_charges_are_not_mistaken_for_isotopes(): void {
+        // "I-1" has the same "Element-digits" shape as isotope notation
+        // like "U-238", but a mass number of 1 is physically impossible
+        // for iodine (atomic number 53), so this must be recognised as
+        // the iodide ion with a -1 charge, not a bogus isotope.
+        $this->assertSame('I<sup>1-</sup>', formatter::format('I-1'));
+    }
+
+    public function test_full_nuclear_symbol_notation(): void {
+        // Mass number (superscript) then atomic number (subscript), both
+        // to the left of the element symbol, e.g. "238/92U". Both numbers
+        // are wrapped in a span that styles.css stacks vertically.
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>238</sup><sub>92</sub></span>U',
+            formatter::format('238/92U')
+        );
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>14</sup><sub>6</sub></span>C',
+            formatter::format('14/6C')
+        );
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>1</sup><sub>1</sub></span>H',
+            formatter::format('1/1H')
+        );
+    }
+
+    public function test_nuclear_symbol_does_not_break_ordinary_slashes(): void {
+        $this->assertSame('10/25/2024', formatter::format('10/25/2024'));
+        $this->assertSame('and/or', formatter::format('and/or'));
+    }
+
+    public function test_unknown_element_placeholder(): void {
+        // "X" stands in for an unknown element in "identify element X"
+        // problems, e.g. given a mass number and atomic number, or given
+        // an isotope notation. It is not a real element symbol, so it is
+        // only recognised in these two notations, never in ordinary
+        // formulas.
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>235</sup><sub>92</sub></span>X',
+            formatter::format('235/92X')
+        );
+        $this->assertSame('<sup>235</sup>X', formatter::format('X-235'));
+        $this->assertSame('<sup>235</sup>X', formatter::format('235-X'));
+    }
+
+    public function test_unknown_number_placeholder(): void {
+        // "?" stands in for an unknown mass number and/or atomic number in
+        // isotope and nuclear symbol notation, e.g. given an element,
+        // identify its unknown mass number. Either or both numbers may be
+        // "?", and it works together with the "X" unknown-element
+        // placeholder too.
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>?</sup><sub>92</sub></span>U',
+            formatter::format('?/92U')
+        );
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>235</sup><sub>?</sub></span>U',
+            formatter::format('235/?U')
+        );
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>?</sup><sub>?</sub></span>U',
+            formatter::format('?/?U')
+        );
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>?</sup><sub>?</sub></span>X',
+            formatter::format('?/?X')
+        );
+        $this->assertSame('<sup>?</sup>U', formatter::format('U-?'));
+        $this->assertSame('<sup>?</sup>U', formatter::format('?-U'));
+    }
+
+    public function test_stray_question_mark_does_not_block_formula_detection(): void {
+        // A "?" that is not part of isotope/nuclear-symbol notation is
+        // ordinary punctuation that happens to be glued onto a formula
+        // with no space (e.g. ending a sentence) - it must not prevent the
+        // formula underneath from being recognised.
+        $this->assertSame('H<sub>2</sub>O?', formatter::format('H2O?'));
+        $this->assertSame(
+            'What is H<sub>2</sub>O? A common substance.',
+            formatter::format('What is H2O? A common substance.')
+        );
+        $this->assertSame('2H<sub>2</sub>O?', formatter::format('2H2O?'));
+        $this->assertSame('<sup>238</sup>U?', formatter::format('U-238?'));
+    }
+
+    public function test_state_labels(): void {
+        $this->assertSame('NaCl(aq)', formatter::format('NaCl(aq)'));
+        $this->assertSame('H<sub>2</sub>O(l)', formatter::format('H2O(l)'));
+        $this->assertSame('CO<sub>2</sub>(g)', formatter::format('CO2(g)'));
+        $this->assertSame('NaCl(s)', formatter::format('NaCl(s)'));
+        $this->assertSame('Fe<sub>2</sub>(SO<sub>4</sub>)<sub>3</sub>(aq)', formatter::format('Fe2(SO4)3(aq)'));
+    }
+
+    public function test_full_equations_with_arrows(): void {
+        $this->assertSame(
+            'H<sub>2</sub> + O<sub>2</sub> → H<sub>2</sub>O',
+            formatter::format('H2 + O2 -> H2O')
+        );
+        $this->assertSame(
+            'H<sub>2</sub> + O<sub>2</sub> → H<sub>2</sub>O',
+            formatter::format('H2 + O2 --> H2O')
+        );
+        $this->assertSame(
+            'N<sub>2</sub> + 3H<sub>2</sub> ⇌ 2NH<sub>3</sub>',
+            formatter::format('N2 + 3H2 <=> 2NH3')
+        );
+        $this->assertSame(
+            'N<sub>2</sub> + 3H<sub>2</sub> ⇌ 2NH<sub>3</sub>',
+            formatter::format('N2 + 3H2 <-> 2NH3')
+        );
+        $this->assertSame(
+            '2NaCl(s) + H<sub>2</sub>SO<sub>4</sub>(aq) → Na<sub>2</sub>SO<sub>4</sub>(aq) + 2HCl(g)',
+            formatter::format('2NaCl(s) + H2SO4(aq) -> Na2SO4(aq) + 2HCl(g)')
+        );
+    }
+
+    public function test_false_positives_are_left_untouched(): void {
+        $this->assertSame('In 2024', formatter::format('In 2024'));
+        $this->assertSame('In', formatter::format('In'));
+        $this->assertSame('As', formatter::format('As'));
+        $this->assertSame('At', formatter::format('At'));
+        $this->assertSame('US', formatter::format('US'));
+        $this->assertSame('COVID19', formatter::format('COVID19'));
+        $this->assertSame('NASA', formatter::format('NASA'));
+        $this->assertSame(
+            'A quick note about H<sub>2</sub>O and CO<sub>2</sub> levels.',
+            formatter::format('A quick note about H2O and CO2 levels.')
+        );
+    }
+
+    public function test_html_escaping(): void {
+        $this->assertSame(
+            '&lt;script&gt;alert(1)&lt;/script&gt;',
+            formatter::format('<script>alert(1)</script>')
+        );
+    }
+
+    public function test_empty_input(): void {
+        $this->assertSame('', formatter::format(''));
+    }
+
+    public function test_has_changes(): void {
+        $this->assertTrue(formatter::has_changes('H2O', formatter::format('H2O')));
+        $this->assertFalse(formatter::has_changes('In 2024', formatter::format('In 2024')));
+
+        // A pure arrow conversion has no <sub>/<sup> at all, but it is
+        // still a real change and must be reported as one.
+        $this->assertTrue(formatter::has_changes('A -> B', formatter::format('A -> B')));
+    }
+
+    public function test_parse_overrides(): void {
+        $raw = "IT = I<sub>2</sub>T\n# a comment line\n\nNaOH=NaOH\n  Cl2  =  weird spacing \n";
+        $this->assertSame([
+            'IT' => 'I<sub>2</sub>T',
+            'NaOH' => 'NaOH',
+            'Cl2' => 'weird spacing',
+        ], formatter::parse_overrides($raw));
+    }
+
+    public function test_parse_overrides_ignores_malformed_lines(): void {
+        $this->assertSame([], formatter::parse_overrides("no equals sign here\n=noleftside\n   \n"));
+    }
+
+    public function test_override_forces_a_specific_rendering(): void {
+        $this->assertSame(
+            'I<sub>2</sub>T',
+            formatter::format('IT', ['IT' => 'I<sub>2</sub>T'])
+        );
+    }
+
+    public function test_override_can_exempt_text_from_automatic_conversion(): void {
+        // Mapping a token to itself suppresses what the automatic rules
+        // would otherwise have done to it.
+        $this->assertSame('H2O', formatter::format('H2O', ['H2O' => 'H2O']));
+    }
+
+    public function test_override_does_not_affect_unrelated_text(): void {
+        $this->assertSame(
+            'Water is H<sub>2</sub>O.',
+            formatter::format('Water is H2O.', ['IT' => 'I<sub>2</sub>T'])
+        );
+    }
+
+    public function test_override_matches_the_whole_candidate_span_only(): void {
+        // "H2O" embedded in a longer run of letters/digits is scanned as
+        // one candidate span ("SuperH2OThing"), which does not equal the
+        // override token "H2O" - so it is left completely alone, same as
+        // any other unrecognised word.
+        $this->assertSame(
+            'SuperH2OThing',
+            formatter::format('SuperH2OThing', ['H2O' => 'OVERRIDDEN'])
+        );
+
+        // A leading stoichiometric coefficient makes the scanned candidate
+        // span "2H2O", not "H2O", so the override does not apply here
+        // either - the automatic rules format it normally instead.
+        $this->assertSame(
+            '2H<sub>2</sub>O',
+            formatter::format('2H2O', ['H2O' => 'OVERRIDDEN'])
+        );
+    }
+}
