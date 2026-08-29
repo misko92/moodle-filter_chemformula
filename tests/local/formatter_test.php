@@ -30,7 +30,6 @@ namespace filter_chemformula\local;
  * @covers     \filter_chemformula\local\formatter
  */
 final class formatter_test extends \basic_testcase {
-
     public function test_simple_formulas(): void {
         $this->assertSame('H<sub>2</sub>O', formatter::format('H2O'));
         $this->assertSame('CO<sub>2</sub>', formatter::format('CO2'));
@@ -73,7 +72,7 @@ final class formatter_test extends \basic_testcase {
     }
 
     public function test_element_digit_charges_are_not_mistaken_for_isotopes(): void {
-        // "I-1" has the same "Element-digits" shape as isotope notation
+        // Token "I-1" has the same "Element-digits" shape as isotope notation
         // like "U-238", but a mass number of 1 is physically impossible
         // for iodine (atomic number 53), so this must be recognised as
         // the iodide ion with a -1 charge, not a bogus isotope.
@@ -104,7 +103,7 @@ final class formatter_test extends \basic_testcase {
     }
 
     public function test_unknown_element_placeholder(): void {
-        // "X" stands in for an unknown element in "identify element X"
+        // Placeholder "X" stands in for an unknown element in "identify element X"
         // problems, e.g. given a mass number and atomic number, or given
         // an isotope notation. It is not a real element symbol, so it is
         // only recognised in these two notations, never in ordinary
@@ -118,7 +117,7 @@ final class formatter_test extends \basic_testcase {
     }
 
     public function test_unknown_number_placeholder(): void {
-        // "?" stands in for an unknown mass number and/or atomic number in
+        // Placeholder "?" stands in for an unknown mass number and/or atomic number in
         // isotope and nuclear symbol notation, e.g. given an element,
         // identify its unknown mass number. Either or both numbers may be
         // "?", and it works together with the "X" unknown-element
@@ -256,7 +255,7 @@ final class formatter_test extends \basic_testcase {
     }
 
     public function test_override_matches_the_whole_candidate_span_only(): void {
-        // "H2O" embedded in a longer run of letters/digits is scanned as
+        // Token "H2O" embedded in a longer run of letters/digits is scanned as
         // one candidate span ("SuperH2OThing"), which does not equal the
         // override token "H2O" - so it is left completely alone, same as
         // any other unrecognised word.

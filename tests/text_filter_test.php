@@ -26,7 +26,6 @@ namespace filter_chemformula;
  * @covers     \filter_chemformula\text_filter
  */
 final class text_filter_test extends \advanced_testcase {
-
     /**
      * Build a filter instance. The filter never reads $this->context or
      * $this->localconfig, so a null context is sufficient here and lets

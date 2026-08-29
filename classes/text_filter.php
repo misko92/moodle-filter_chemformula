@@ -38,7 +38,6 @@ use filter_chemformula\local\formatter;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class text_filter extends \core_filters\text_filter {
-
     /** @var string[] Element tag names whose contents must never be touched. */
     private const SKIP_TAGS = ['pre', 'code', 'script', 'style'];
 

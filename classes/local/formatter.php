@@ -36,7 +36,6 @@ namespace filter_chemformula\local;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class formatter {
-
     /** @var string[] Single-letter IUPAC element symbols. */
     private const ELEMENTS_1 = [
         'H', 'B', 'C', 'N', 'O', 'F', 'P', 'S', 'K', 'V', 'Y', 'I', 'W', 'U',
@@ -260,7 +259,7 @@ final class formatter {
         $state->hasgroup = false;
         $state->segments = [];
 
-        $consumedigits = function() use ($str, $len, $state): void {
+        $consumedigits = function () use ($str, $len, $state): void {
             $start = $state->pos;
             while ($state->pos < $len && ctype_digit($str[$state->pos])) {
                 $state->pos++;
@@ -271,7 +270,7 @@ final class formatter {
             }
         };
 
-        $parseunits = function(?string $closing) use (&$parseunits, $str, $len, $state, $consumedigits): bool {
+        $parseunits = function (?string $closing) use (&$parseunits, $str, $len, $state, $consumedigits): bool {
             $matchedany = false;
             while ($state->pos < $len && ($closing === null || $str[$state->pos] !== $closing)) {
                 $ch = $str[$state->pos];
