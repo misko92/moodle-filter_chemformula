@@ -164,6 +164,39 @@ final class formatter_test extends \basic_testcase {
         $this->assertSame('Fe<sub>2</sub>(SO<sub>4</sub>)<sub>3</sub>(aq)', formatter::format('Fe2(SO4)3(aq)'));
     }
 
+    public function test_hydrate_dot_notation(): void {
+        // A "." used as the hydrate separator becomes a proper middle dot, and
+        // both the salt and the water are formatted.
+        $this->assertSame('CuSO<sub>4</sub>·5H<sub>2</sub>O', formatter::format('CuSO4.5H2O'));
+        $this->assertSame('MgSO<sub>4</sub>·7H<sub>2</sub>O', formatter::format('MgSO4.7H2O'));
+        $this->assertSame('Na<sub>2</sub>CO<sub>3</sub>·10H<sub>2</sub>O', formatter::format('Na2CO3.10H2O'));
+        $this->assertSame('Fe(NO<sub>3</sub>)<sub>3</sub>·9H<sub>2</sub>O', formatter::format('Fe(NO3)3.9H2O'));
+        $this->assertSame('KAl(SO<sub>4</sub>)<sub>2</sub>·12H<sub>2</sub>O', formatter::format('KAl(SO4)2.12H2O'));
+
+        // Monohydrate (no coefficient) and a trailing state label still work.
+        $this->assertSame('CuSO<sub>4</sub>·H<sub>2</sub>O', formatter::format('CuSO4.H2O'));
+        $this->assertSame('CoCl<sub>2</sub>·6H<sub>2</sub>O(s)', formatter::format('CoCl2.6H2O(s)'));
+
+        // A middle dot the author already typed is left as-is.
+        $this->assertSame('CuSO<sub>4</sub>·5H<sub>2</sub>O', formatter::format('CuSO4·5H2O'));
+
+        // Spaces around the separator are normalised away.
+        $this->assertSame('CuSO<sub>4</sub>·5H<sub>2</sub>O', formatter::format('CuSO4 . 5H2O'));
+    }
+
+    public function test_hydrate_dot_does_not_touch_ordinary_periods(): void {
+        // Sentence-ending period after a formula.
+        $this->assertSame(
+            'The salt is CaCl<sub>2</sub>. It dissolves in H<sub>2</sub>O.',
+            formatter::format('The salt is CaCl2. It dissolves in H2O.')
+        );
+        // A decimal that happens to abut "H2O": the water is still formatted,
+        // but the "." is not turned into a hydrate dot.
+        $this->assertStringNotContainsString('·', formatter::format('Add 2.5H2O of solution'));
+        // A version number followed by "H2O" later in the sentence.
+        $this->assertStringNotContainsString('·', formatter::format('Moodle 3.5 needs H2O'));
+    }
+
     public function test_full_equations_with_arrows(): void {
         $this->assertSame(
             'H<sub>2</sub> + O<sub>2</sub> → H<sub>2</sub>O',

@@ -99,6 +99,15 @@ final class formatter {
     /** @var string Reaction arrow shorthand, longest alternatives first. */
     private const ARROW_PATTERN = '/<=>|<->|-->|->/';
 
+    /**
+     * @var string Hydrate shorthand: a "." used as the hydrate separator, e.g.
+     * "CuSO4.5H2O". Requires the left side to end like a formula (a letter or
+     * closing bracket, optionally followed by subscript digits) and the right
+     * side to be an optional small coefficient immediately followed by "H2O",
+     * so sentence-ending periods, decimals and version numbers are left alone.
+     */
+    private const HYDRATE_DOT_PATTERN = '/([A-Za-z)\]]\d{0,3})\s*\.\s*((?:\d{1,2}|x)?H2O)\b/';
+
     /** @var string A candidate span: a maximal run of characters a chemistry token could be made of. */
     private const CANDIDATE_PATTERN = '/[A-Za-z0-9()\[\]+\-^\/?]+/';
 
@@ -123,7 +132,7 @@ final class formatter {
             return '';
         }
 
-        $witharrows = self::convert_arrows($text);
+        $witharrows = self::convert_arrows(self::convert_hydrate_dots($text));
 
         $output = '';
         $lastindex = 0;
@@ -215,6 +224,23 @@ final class formatter {
         return preg_replace_callback(
             self::ARROW_PATTERN,
             static fn($match) => ($match[0] === '<=>' || $match[0] === '<->') ? '⇌' : '→',
+            $text
+        );
+    }
+
+    /**
+     * Normalise a period used as a hydrate separator ("CuSO4.5H2O") into a
+     * proper middle dot ("CuSO4·5H2O"). Any surrounding spaces are dropped so
+     * the result is the canonical form. See {@see HYDRATE_DOT_PATTERN} for the
+     * guards that keep ordinary periods untouched.
+     *
+     * @param string $text
+     * @return string
+     */
+    private static function convert_hydrate_dots(string $text): string {
+        return preg_replace_callback(
+            self::HYDRATE_DOT_PATTERN,
+            static fn($match) => $match[1] . "\u{00B7}" . $match[2],
             $text
         );
     }
