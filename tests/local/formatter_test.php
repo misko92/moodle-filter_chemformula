@@ -197,6 +197,65 @@ final class formatter_test extends \basic_testcase {
         $this->assertStringNotContainsString('·', formatter::format('Moodle 3.5 needs H2O'));
     }
 
+    public function test_scientific_notation_e_form(): void {
+        // The "E"/"e" form, with and without a decimal mantissa and with
+        // either sign (or none) on the exponent. A leading "+" on the
+        // exponent is dropped; a "-" is kept.
+        $this->assertSame('6.02 × 10<sup>23</sup>', formatter::format('6.02E23'));
+        $this->assertSame('6.02 × 10<sup>23</sup>', formatter::format('6.02e23'));
+        $this->assertSame('1 × 10<sup>10</sup>', formatter::format('1E10'));
+        $this->assertSame('1.6 × 10<sup>-19</sup>', formatter::format('1.6e-19'));
+        $this->assertSame('3 × 10<sup>8</sup>', formatter::format('3e+8'));
+        $this->assertStringNotContainsString('E', formatter::format('6.02E23'));
+    }
+
+    public function test_scientific_notation_explicit_times_form(): void {
+        // The explicit form: "x", "*" or a real multiplication sign, with optional spaces.
+        $this->assertSame('6.02 × 10<sup>23</sup>', formatter::format('6.02x10^23'));
+        $this->assertSame('6.02 × 10<sup>23</sup>', formatter::format('6.02 x 10^23'));
+        $this->assertSame('6.02 × 10<sup>23</sup>', formatter::format('6.02*10^23'));
+        $this->assertSame('6.02 × 10<sup>23</sup>', formatter::format('6.02 × 10^23'));
+        $this->assertSame('9.11 × 10<sup>-31</sup>', formatter::format('9.11x10^-31'));
+        $this->assertStringNotContainsString('^', formatter::format('6.02x10^23'));
+    }
+
+    public function test_scientific_notation_bare_power_of_ten(): void {
+        $this->assertSame('10<sup>23</sup>', formatter::format('10^23'));
+        $this->assertSame('10<sup>-3</sup>', formatter::format('10^-3'));
+        $this->assertSame(
+            'There are about 10<sup>23</sup> molecules per mole.',
+            formatter::format('There are about 10^23 molecules per mole.')
+        );
+    }
+
+    public function test_scientific_notation_in_a_sentence_and_next_to_chemistry(): void {
+        $this->assertSame(
+            'One mole contains 6.02 × 10<sup>23</sup> particles.',
+            formatter::format('One mole contains 6.02E23 particles.')
+        );
+        $this->assertSame(
+            'K = 1.8 × 10<sup>-5</sup> for CH<sub>3</sub>COOH',
+            formatter::format('K = 1.8x10^-5 for CH3COOH')
+        );
+    }
+
+    public function test_scientific_notation_false_positives_are_left_untouched(): void {
+        // An "e" glued to letters is not scientific notation - and neither
+        // is an element symbol that merely contains an "e".
+        $this->assertSame('cafe123', formatter::format('cafe123'));
+        $this->assertSame('abc1e5xyz', formatter::format('abc1e5xyz'));
+        $this->assertSame('Fe<sub>2</sub>O<sub>3</sub>', formatter::format('Fe2O3'));
+        $this->assertSame('Ne<sub>2</sub>', formatter::format('Ne2'));
+        // A trailing "." or extra digits break the match.
+        $this->assertSame('version 1e2.3 build', formatter::format('version 1e2.3 build'));
+        // An "x10" with no mantissa is left alone.
+        $this->assertSame('buy 3 get x10 points', formatter::format('buy 3 get x10 points'));
+        // A caret that is not a power of ten.
+        $this->assertSame('a^b and 2^n', formatter::format('a^b and 2^n'));
+        $this->assertTrue(formatter::has_changes('6.02E23', formatter::format('6.02E23')));
+        $this->assertFalse(formatter::has_changes('a^b and 2^n', formatter::format('a^b and 2^n')));
+    }
+
     public function test_full_equations_with_arrows(): void {
         $this->assertSame(
             'H<sub>2</sub> + O<sub>2</sub> → H<sub>2</sub>O',
@@ -278,6 +337,17 @@ final class formatter_test extends \basic_testcase {
         // Mapping a token to itself suppresses what the automatic rules
         // would otherwise have done to it.
         $this->assertSame('H2O', formatter::format('H2O', ['H2O' => 'H2O']));
+    }
+
+    public function test_override_wins_over_scientific_notation(): void {
+        // An exact-match override on a scientific-notation token takes
+        // precedence over the automatic conversion, and mapping it to
+        // itself exempts it entirely.
+        $this->assertSame(
+            '10<sup>23</sup> (Avogadro)',
+            formatter::format('10^23', ['10^23' => '10<sup>23</sup> (Avogadro)'])
+        );
+        $this->assertSame('10^23', formatter::format('10^23', ['10^23' => '10^23']));
     }
 
     public function test_override_does_not_affect_unrelated_text(): void {

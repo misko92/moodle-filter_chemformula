@@ -117,6 +117,35 @@ final class text_filter_test extends \advanced_testcase {
         $this->assertSame('<p>A → B</p>', $filter->filter('<p>A -> B</p>'));
     }
 
+    public function test_scientific_notation_is_converted_inside_html(): void {
+        $filter = $this->get_filter();
+        $this->assertSame(
+            '<p>Avogadro: 6.02 × 10<sup>23</sup> mol.</p>',
+            $filter->filter('<p>Avogadro: 6.02x10^23 mol.</p>')
+        );
+        $this->assertSame(
+            '<p>Planck is 6.63 × 10<sup>-34</sup> J s.</p>',
+            $filter->filter('<p>Planck is 6.63E-34 J s.</p>')
+        );
+    }
+
+    public function test_lowercase_only_scientific_notation_still_passes_the_shortcut(): void {
+        // Text like "6.02e23" and "10^23" contains no uppercase letter, so
+        // the early-out in filter() has to recognise it by shape or the
+        // conversion is silently skipped.
+        $filter = $this->get_filter();
+        $this->assertSame('<p>6.02 × 10<sup>23</sup></p>', $filter->filter('<p>6.02e23</p>'));
+        $this->assertSame('<p>about 10<sup>23</sup> atoms</p>', $filter->filter('<p>about 10^23 atoms</p>'));
+    }
+
+    public function test_scientific_notation_inside_code_is_untouched(): void {
+        $filter = $this->get_filter();
+        $this->assertSame(
+            '<p>6.02 × 10<sup>23</sup></p><pre><code>x = 6.02e23</code></pre>',
+            $filter->filter('<p>6.02x10^23</p><pre><code>x = 6.02e23</code></pre>')
+        );
+    }
+
     public function test_override_forces_a_specific_rendering(): void {
         $this->resetAfterTest(true);
         set_config('overrides', 'IT = I<sub>2</sub>T', 'filter_chemformula');

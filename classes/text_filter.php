@@ -22,8 +22,9 @@ use filter_chemformula\local\formatter;
  * Filter main class for the filter_chemformula plugin.
  *
  * Detects chemical formulas and equations (e.g. "H2O", "Fe2(SO4)3",
- * "U-238", "Ca2+", "H2 + O2 -> H2O") in text and marks them up with
- * proper subscripts, superscripts, isotope notation and reaction arrows.
+ * "U-238", "Ca2+", "H2 + O2 -> H2O") and scientific notation (e.g.
+ * "6.02E23", "6.02x10^23") in text and marks them up with proper
+ * subscripts, superscripts, isotope notation and reaction arrows.
  * Admins can also configure exact-match overrides (see settings.php) to
  * force specific rendering, or exempt specific tokens, ahead of the
  * automatic rules.
@@ -59,10 +60,12 @@ class text_filter extends \core_filters\text_filter {
         $overrides = $this->get_overrides();
 
         // Performance shortcut: every automatically-detected chemistry
-        // token starts with an uppercase element-symbol letter, so there
-        // is nothing to do if none is present - unless an override is
+        // token starts with an uppercase element-symbol letter, and the
+        // only markup emitted without one is scientific notation, which
+        // always contains a "digit-e-digit" run or a "^". If none of those
+        // is present there is nothing to do - unless an override is
         // configured, since an override token could be anything.
-        if (empty($overrides) && !preg_match('/[A-Z]/', $text)) {
+        if (empty($overrides) && !preg_match('/[A-Z]|\d[eE][-+]?\d|\^/', $text)) {
             return $text;
         }
 

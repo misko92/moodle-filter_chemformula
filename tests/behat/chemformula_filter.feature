@@ -32,6 +32,15 @@ Feature: Format chemical formulas in text with the chemformula filter
     Then I should see "2H2 + O2 → 2H2O"
 
   @javascript
+  Scenario: Scientific notation gets a superscript exponent
+    Given the following "user" exists:
+      | username    | chemsci                                                  |
+      | description | <p>Avogadro's number is about 6.02x10^23 per mole.</p>    |
+    When I am on the "chemsci" "user > profile" page logged in as "chemsci"
+    Then I should see "6.02 × 10"
+    And "//sup[normalize-space(text())='23']" "xpath_element" should exist
+
+  @javascript
   Scenario: Formulas inside a code block are left untouched
     Given the following "user" exists:
       | username    | chem4                                               |

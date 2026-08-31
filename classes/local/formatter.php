@@ -22,9 +22,10 @@ namespace filter_chemformula\local;
  * Ported from the tiny_chemformula TinyMCE plugin's amd/src/formatter.js,
  * which this filter's conversion logic replaces. Takes plain text and
  * returns HTML with chemical formulas and equations marked up
- * (subscripts, superscripts, isotope notation, arrows). Anything that
- * does not fully and unambiguously resolve against the real periodic
- * table is left untouched (HTML-escaped, but otherwise unchanged).
+ * (subscripts, superscripts, isotope notation, arrows, and scientific
+ * notation such as "6.02E23" or "6.02x10^23"). Anything that does not
+ * fully and unambiguously resolve against the real periodic table is
+ * left untouched (HTML-escaped, but otherwise unchanged).
  *
  * This class has no dependency on the DOM or the rest of Moodle: it is a
  * pure function of its input, callable directly and unit-testable in
@@ -112,11 +113,44 @@ final class formatter {
     private const CANDIDATE_PATTERN = '/[A-Za-z0-9()\[\]+\-^\/?]+/';
 
     /**
+     * @var string printf template for the sentinel that stands in for a
+     * pre-rendered scientific-notation region while the candidate-span
+     * scanner runs. The "\x02" (SUB control byte) delimiters cannot occur
+     * in real editor content, and the "sci<n>" body is plain lowercase so
+     * the scanner treats it as an ordinary unrecognised word and leaves it
+     * alone; {@see restore_scientific_notation} then swaps the real HTML
+     * back in. See {@see extract_scientific_notation} for why the region
+     * has to be lifted out rather than converted in place.
+     */
+    private const SCINOTATION_SENTINEL = "\x02sci%d\x02";
+
+    /**
+     * @var string Scientific notation written with an "E", e.g. "6.02E23",
+     * "6.02e23", "1.6e-19". A digit is required immediately before the
+     * "e" so element symbols that contain one (Fe, Ne, Se, Te, ...) can
+     * never match, and the surrounding lookarounds keep it from firing
+     * inside a longer word or a formula token.
+     */
+    private const SCINOTATION_E_PATTERN = '/(?<![\w.])(\d+(?:\.\d+)?)[eE]([+-]?\d+)(?![\w.])/';
+
+    /**
+     * @var string Scientific notation written out explicitly, e.g.
+     * "6.02x10^23", "6.02 * 10^23", "6.02 x 10^-19". Whitespace around the
+     * multiplication sign is optional; the sign itself may be "x", "X",
+     * "*", "\u{00D7}" or "\u{00B7}".
+     */
+    private const SCINOTATION_TIMES_PATTERN =
+        '/(?<![\w.])(\d+(?:\.\d+)?)\s*[xX*\x{00B7}\x{00D7}\x{22C5}]\s*10\s*\^\s*([+-]?\d+)(?![\w.])/u';
+
+    /** @var string A bare power of ten with no mantissa, e.g. "10^23", "10^-3". */
+    private const SCINOTATION_POWER_PATTERN = '/(?<![\w.])10\s*\^\s*([+-]?\d+)(?![\w.])/';
+
+    /**
      * Detect chemical formulas and equations in plain text and return
      * HTML with them formatted (subscripts, superscripts, isotope
-     * notation and reaction arrows). Anything that does not fully and
-     * unambiguously resolve against the real periodic table is left
-     * untouched.
+     * notation, reaction arrows and scientific notation). Anything that
+     * does not fully and unambiguously resolve against the real periodic
+     * table is left untouched.
      *
      * @param string $text plain text input.
      * @param array<string, string> $overrides admin-configured exact-match
@@ -132,14 +166,15 @@ final class formatter {
             return '';
         }
 
-        $witharrows = self::convert_arrows(self::convert_hydrate_dots($text));
+        $prepared = self::convert_arrows(self::convert_hydrate_dots($text));
+        [$prepared, $scinotation] = self::extract_scientific_notation($prepared, $overrides);
 
         $output = '';
         $lastindex = 0;
-        if (preg_match_all(self::CANDIDATE_PATTERN, $witharrows, $matches, PREG_OFFSET_CAPTURE)) {
+        if (preg_match_all(self::CANDIDATE_PATTERN, $prepared, $matches, PREG_OFFSET_CAPTURE)) {
             foreach ($matches[0] as $match) {
                 [$span, $offset] = $match;
-                $output .= self::escape_html(substr($witharrows, $lastindex, $offset - $lastindex));
+                $output .= self::escape_html(substr($prepared, $lastindex, $offset - $lastindex));
                 if (array_key_exists($span, $overrides)) {
                     $output .= $overrides[$span];
                 } else if (preg_match('/[A-Z]/', $span)) {
@@ -150,9 +185,9 @@ final class formatter {
                 $lastindex = $offset + strlen($span);
             }
         }
-        $output .= self::escape_html(substr($witharrows, $lastindex));
+        $output .= self::escape_html(substr($prepared, $lastindex));
 
-        return $output;
+        return self::restore_scientific_notation($output, $scinotation);
     }
 
     /**
@@ -243,6 +278,83 @@ final class formatter {
             static fn($match) => $match[1] . "\u{00B7}" . $match[2],
             $text
         );
+    }
+
+    /**
+     * Lift every scientific-notation region ("6.02E23", "6.02x10^23",
+     * "10^23", ...) out of the text, returning the text with each one
+     * replaced by an inert sentinel plus a map of sentinel => rendered
+     * HTML.
+     *
+     * Unlike the arrow and hydrate-dot conversions, which substitute one
+     * plain character for another, this one has to emit real <sup> markup.
+     * If that markup were left in the string the candidate-span scanner in
+     * {@see format()} would HTML-escape the angle brackets of the gaps
+     * around it. Extracting the region and splicing it back in after the
+     * scan (see {@see restore_scientific_notation}) keeps the scanner
+     * working on plain text throughout.
+     *
+     * @param string $text text with arrows and hydrate dots already converted.
+     * @param array<string, string> $overrides admin-configured exact-match
+     *        overrides; a region whose literal text is an override key is
+     *        left in place so {@see format()}'s scan can apply the override,
+     *        keeping the "overrides win" contract.
+     * @return array{0: string, 1: array<string, string>} the rewritten text
+     *         and the sentinel => HTML map (empty if nothing matched).
+     */
+    private static function extract_scientific_notation(string $text, array $overrides): array {
+        if (str_contains($text, "\x02")) {
+            // The sentinel delimiter is already present in the content
+            // (this should never happen with real editor input); splicing
+            // back in afterwards would not be safe, so do nothing.
+            return [$text, []];
+        }
+
+        $replacements = [];
+        $store = static function (string $matched, string $html) use (&$replacements, $overrides): string {
+            if (array_key_exists($matched, $overrides)) {
+                // Leave it for the scan to override, exactly as for a formula.
+                return $matched;
+            }
+            $key = sprintf(self::SCINOTATION_SENTINEL, count($replacements));
+            $replacements[$key] = $html;
+            return $key;
+        };
+
+        $mantissatimespower = static fn(array $m): string =>
+            $store($m[0], $m[1] . ' ' . "\u{00D7}" . ' 10<sup>' . ltrim($m[2], '+') . '</sup>');
+
+        foreach ([self::SCINOTATION_E_PATTERN, self::SCINOTATION_TIMES_PATTERN] as $pattern) {
+            $result = preg_replace_callback($pattern, $mantissatimespower, $text);
+            if ($result !== null) {
+                $text = $result;
+            }
+        }
+
+        // Bare "10^n" last, so it does not pre-empt the "x 10^n" tail of a
+        // full "mantissa x 10^n" expression handled above.
+        $result = preg_replace_callback(
+            self::SCINOTATION_POWER_PATTERN,
+            static fn(array $m): string => $store($m[0], '10<sup>' . ltrim($m[1], '+') . '</sup>'),
+            $text
+        );
+        if ($result !== null) {
+            $text = $result;
+        }
+
+        return [$text, $replacements];
+    }
+
+    /**
+     * Swap the rendered scientific-notation HTML back in for the sentinels
+     * that {@see extract_scientific_notation} left in the text.
+     *
+     * @param string $html the scanned output, still containing sentinels.
+     * @param array<string, string> $replacements sentinel => HTML map.
+     * @return string
+     */
+    private static function restore_scientific_notation(string $html, array $replacements): string {
+        return $replacements === [] ? $html : strtr($html, $replacements);
     }
 
     /**
