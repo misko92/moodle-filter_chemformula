@@ -65,6 +65,32 @@ final class formatter_test extends \basic_testcase {
         $this->assertSame('SO<sub>4</sub><sup>2+</sup>', formatter::format('SO4^2+'));
     }
 
+    public function test_parenthesised_ion_notation(): void {
+        // An entire ion (formula + charge) wrapped in its own outer
+        // "(...)"/"[...]" - e.g. to parenthesise it in prose - is one
+        // candidate span including the brackets, since "(" and ")" are
+        // themselves candidate characters. Unlike a formula group such as
+        // "Ca(OH)2" (followed by a subscript), nothing follows the closing
+        // bracket here, so the brackets are kept as plain literal text and
+        // the ion inside is still formatted, matching how the same text
+        // renders when written with spaces around the brackets.
+        $this->assertSame('(SO<sub>4</sub><sup>2-</sup>)', formatter::format('(SO4^2-)'));
+        $this->assertSame('( SO<sub>4</sub><sup>2-</sup> )', formatter::format('( SO4^2- )'));
+        $this->assertSame('(NO<sub>3</sub><sup>-</sup>)', formatter::format('(NO3^-)'));
+        $this->assertSame('(PO<sub>4</sub><sup>3-</sup>)', formatter::format('(PO4^3-)'));
+        $this->assertSame('(NH<sub>4</sub><sup>+</sup>)', formatter::format('(NH4^+)'));
+        $this->assertSame('(CO<sub>3</sub><sup>2-</sup>)', formatter::format('(CO3^2-)'));
+        $this->assertSame('[Cr<sub>2</sub>O<sub>7</sub><sup>2-</sup>]', formatter::format('[Cr2O7^2-]'));
+
+        // A genuine formula group followed by a subscript is unaffected -
+        // it is still parsed directly as part of the formula body.
+        $this->assertSame('Ca(OH)<sub>2</sub>', formatter::format('Ca(OH)2'));
+
+        // A standalone group with nothing to format inside (no digits, no
+        // charge) still renders as plain literal text either way.
+        $this->assertSame('(OH)', formatter::format('(OH)'));
+    }
+
     public function test_isotopes(): void {
         $this->assertSame('<sup>238</sup>U', formatter::format('U-238'));
         $this->assertSame('<sup>238</sup>U', formatter::format('238-U'));

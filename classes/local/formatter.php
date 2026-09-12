@@ -570,10 +570,53 @@ final class formatter {
      * chemistry. If it does not resolve completely and unambiguously,
      * the original text is returned unchanged (HTML-escaped).
      *
+     * This is a thin wrapper around {@see process_candidate_span_inner}
+     * that adds one fallback: a span wrapped in a matching outer bracket
+     * pair with nothing following the closing bracket - e.g. "(SO4^2-)",
+     * used to parenthesise an entire ion/charge notation in prose - where
+     * the direct attempt found nothing to format. In that case the
+     * brackets almost certainly aren't a formula group (a real group like
+     * "Ca(OH)2" is followed by a subscript and {@see process_candidate_span_inner}
+     * already parses it directly), so the interior is retried on its own
+     * and, if that resolves, the brackets are kept as plain literal text
+     * around it - matching how the same text renders when written with
+     * spaces, e.g. "( SO4^2- )", which splits into separate candidate spans.
+     *
      * @param string $rawspan
      * @return string
      */
     private static function process_candidate_span(string $rawspan): string {
+        $direct = self::process_candidate_span_inner($rawspan);
+        if (self::has_changes($rawspan, $direct)) {
+            return $direct;
+        }
+
+        if (strlen($rawspan) >= 2) {
+            $openchar = $rawspan[0];
+            $closechar = $rawspan[strlen($rawspan) - 1];
+            $matchingclose = $openchar === '(' ? ')' : ($openchar === '[' ? ']' : null);
+            if ($matchingclose !== null && $closechar === $matchingclose) {
+                $inner = substr($rawspan, 1, -1);
+                if ($inner !== '' && !str_contains($inner, $openchar) && !str_contains($inner, $closechar)) {
+                    $formattedinner = self::process_candidate_span_inner($inner);
+                    if (self::has_changes($inner, $formattedinner)) {
+                        return self::escape_html($openchar) . $formattedinner . self::escape_html($closechar);
+                    }
+                }
+            }
+        }
+
+        return $direct;
+    }
+
+    /**
+     * The actual candidate-span resolution logic; see {@see process_candidate_span},
+     * which wraps this with an outer-bracket fallback.
+     *
+     * @param string $rawspan
+     * @return string
+     */
+    private static function process_candidate_span_inner(string $rawspan): string {
         if ($rawspan === '') {
             return self::escape_html($rawspan);
         }
