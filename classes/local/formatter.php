@@ -97,6 +97,15 @@ final class formatter {
      */
     private const UNKNOWN_ELEMENT_PLACEHOLDER = 'X';
 
+    /**
+     * @var string[] Subatomic particle symbols recognised in nuclear symbol
+     * notation (mass/atomic-number/symbol), e.g. "0/-1e" (beta particle),
+     * "1/0n" (neutron), "1/1p" (proton). Unlike element symbols these are
+     * lowercase and have no entry in the atomic-number tables, so they are
+     * checked separately from {@see self::ELEMENTS_1} / {@see self::ELEMENTS_2}.
+     */
+    private const PARTICLE_SYMBOLS = ['e', 'n', 'p'];
+
     /** @var string Reaction arrow shorthand, longest alternatives first. */
     private const ARROW_PATTERN = '/<=>|<->|-->|->/';
 
@@ -177,7 +186,13 @@ final class formatter {
                 $output .= self::escape_html(substr($prepared, $lastindex, $offset - $lastindex));
                 if (array_key_exists($span, $overrides)) {
                     $output .= $overrides[$span];
-                } else if (preg_match('/[A-Z]/', $span)) {
+                } else if (
+                    preg_match('/[A-Z]/', $span)
+                    || preg_match('/^(?:\d+|\?)\/(?:-?\d+|\?)[enp]$/', $span)
+                ) {
+                    // The uppercase check alone would miss subatomic-particle
+                    // nuclear symbols (e.g. "0/-1e"), whose symbol is a bare
+                    // lowercase letter - see {@see PARTICLE_SYMBOLS}.
                     $output .= self::process_candidate_span($span);
                 } else {
                     $output .= self::escape_html($span);
@@ -505,16 +520,20 @@ final class formatter {
     /**
      * Check for full nuclear symbol notation, e.g. "238/92U": mass number
      * (superscript) then atomic number (subscript), both to the left of
-     * the element symbol. The whole candidate span must match exactly.
+     * the element symbol. Also covers subatomic particles, whose atomic
+     * number may be negative (e.g. "0/-1e", the beta particle) and whose
+     * symbol is a bare lowercase letter (see {@see self::PARTICLE_SYMBOLS}).
+     * The whole candidate span must match exactly.
      *
      * @param string $span
      * @return ?string the formatted HTML, or null if not this notation.
      */
     private static function try_format_nuclear_symbol(string $span): ?string {
-        if (preg_match('/^(\d+|\?)\/(\d+|\?)([A-Z][a-z]?)$/', $span, $match)) {
+        if (preg_match('/^(\d+|\?)\/(-?\d+|\?)([A-Z][a-z]?|[enp])$/', $span, $match)) {
             $issymbol = $match[3] === self::UNKNOWN_ELEMENT_PLACEHOLDER
                 || in_array($match[3], self::ELEMENTS_1, true)
-                || in_array($match[3], self::ELEMENTS_2, true);
+                || in_array($match[3], self::ELEMENTS_2, true)
+                || in_array($match[3], self::PARTICLE_SYMBOLS, true);
             if ($issymbol) {
                 // The mass number and atomic number are wrapped together so
                 // filter_chemformula's styles.css can stack them vertically
@@ -565,7 +584,7 @@ final class formatter {
         $bareforisotopecheck = str_replace('^', '', $rawspan);
         $isnumberfirstisotope = (bool) preg_match('/^(?:\d+|\?)-[A-Z][a-z]?$/', $bareforisotopecheck);
         $iselementfirstisotope = (bool) preg_match('/^[A-Z][a-z]?-(?:\d+|\?)$/', $bareforisotopecheck);
-        $isnuclearsymbol = (bool) preg_match('/^(?:\d+|\?)\/(?:\d+|\?)[A-Z][a-z]?$/', $bareforisotopecheck);
+        $isnuclearsymbol = (bool) preg_match('/^(?:\d+|\?)\/(?:-?\d+|\?)(?:[A-Z][a-z]?|[enp])$/', $bareforisotopecheck);
         $isrecognisedplaceholdershape = $isnumberfirstisotope || $iselementfirstisotope || $isnuclearsymbol;
 
         // A leading run of digits that is not itself isotope notation or a

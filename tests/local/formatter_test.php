@@ -97,6 +97,28 @@ final class formatter_test extends \basic_testcase {
         );
     }
 
+    public function test_nuclear_symbol_particles(): void {
+        // Subatomic particles in nuclear-equation notation: the atomic
+        // number may be negative (beta particle) and the symbol is a bare
+        // lowercase letter rather than a capitalised element symbol.
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>0</sup><sub>-1</sub></span>e',
+            formatter::format('0/-1e')
+        );
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>0</sup><sub>1</sub></span>e',
+            formatter::format('0/1e')
+        );
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>1</sup><sub>0</sub></span>n',
+            formatter::format('1/0n')
+        );
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>1</sup><sub>1</sub></span>p',
+            formatter::format('1/1p')
+        );
+    }
+
     public function test_nuclear_symbol_does_not_break_ordinary_slashes(): void {
         $this->assertSame('10/25/2024', formatter::format('10/25/2024'));
         $this->assertSame('and/or', formatter::format('and/or'));
