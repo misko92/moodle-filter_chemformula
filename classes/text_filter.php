@@ -43,6 +43,12 @@ class text_filter extends \core_filters\text_filter {
     /** @var string[] Element tag names whose contents must never be touched. */
     private const SKIP_TAGS = ['pre', 'code', 'script', 'style'];
 
+    /** @var string[] Inline formatting tags that don't break a run of text (see {@see collect_runs}). */
+    private const INLINE_TAGS = [
+        'a', 'abbr', 'b', 'bdi', 'bdo', 'cite', 'del', 'dfn', 'em', 'font', 'i', 'ins', 'mark', 'q',
+        's', 'small', 'span', 'strike', 'strong', 'sub', 'sup', 'time', 'u',
+    ];
+
     /**
      * @var ?array<string, string> Cache of the parsed overrides setting,
      * scoped to this filter instance rather than the class, so it can't
@@ -127,9 +133,8 @@ class text_filter extends \core_filters\text_filter {
     }
 
     /**
-     * Recursively walk the children of $node, replacing chemistry in any
-     * text node descendant that isn't inside one of {@see SKIP_TAGS} or a
-     * "nolink" element.
+     * Replace chemistry in every text node descendant of $node that isn't
+     * inside one of {@see SKIP_TAGS} or a "nolink" element.
      *
      * @param \DOMDocument $doc
      * @param \DOMNode $node
@@ -137,22 +142,58 @@ class text_filter extends \core_filters\text_filter {
      * @return bool whether any replacement was made anywhere in the subtree.
      */
     private function process_children(\DOMDocument $doc, \DOMNode $node, array $overrides): bool {
+        $runs = [[]];
+        $this->collect_runs($node, $runs);
+
         $changed = false;
-        foreach (iterator_to_array($node->childNodes) as $child) {
-            if ($child->nodeType === XML_TEXT_NODE) {
-                if ($this->replace_text_node($doc, $child, $overrides)) {
+        foreach ($runs as $run) {
+            if ($run === []) {
+                continue;
+            }
+            // Pair backtick literals over the whole run, so one whose
+            // backticks land in different text nodes still resolves, e.g.
+            // "`<em>2.5x10^-3`</em>" as the editor tends to produce.
+            $mask = formatter::literal_mask(implode('', array_map(static fn(\DOMText $t): string => $t->data, $run)));
+            $offset = 0;
+            foreach ($run as $textnode) {
+                $length = strlen($textnode->data);
+                if ($this->replace_text_node($doc, $textnode, $overrides, substr($mask, $offset, $length))) {
                     $changed = true;
                 }
-            } else if ($child->nodeType === XML_ELEMENT_NODE) {
-                if (in_array(strtolower($child->nodeName), self::SKIP_TAGS, true) || $this->is_nolink($child)) {
-                    continue;
-                }
-                if ($this->process_children($doc, $child, $overrides)) {
-                    $changed = true;
-                }
+                $offset += $length;
             }
         }
         return $changed;
+    }
+
+    /**
+     * Gather the text node descendants of $node into runs: each run is the
+     * text nodes that read as one continuous stretch of text, separated
+     * only by {@see INLINE_TAGS}. Any other element (a paragraph, list
+     * item, line break, ...) or a skipped element ends the current run.
+     *
+     * @param \DOMNode $node
+     * @param \DOMText[][] $runs appended to; the last run is the open one.
+     */
+    private function collect_runs(\DOMNode $node, array &$runs): void {
+        foreach (iterator_to_array($node->childNodes) as $child) {
+            if ($child->nodeType === XML_TEXT_NODE) {
+                $runs[array_key_last($runs)][] = $child;
+            } else if ($child->nodeType === XML_ELEMENT_NODE) {
+                $name = strtolower($child->nodeName);
+                $skip = in_array($name, self::SKIP_TAGS, true) || $this->is_nolink($child);
+                $boundary = $skip || !in_array($name, self::INLINE_TAGS, true);
+                if ($boundary) {
+                    $runs[] = [];
+                }
+                if (!$skip) {
+                    $this->collect_runs($child, $runs);
+                }
+                if ($boundary) {
+                    $runs[] = [];
+                }
+            }
+        }
     }
 
     /**
@@ -175,17 +216,23 @@ class text_filter extends \core_filters\text_filter {
      * @param \DOMDocument $doc
      * @param \DOMText $textnode
      * @param array<string, string> $overrides
+     * @param string $literalmask this node's slice of the run's {@see formatter::literal_mask()}.
      * @return bool whether the node was replaced.
      */
-    private function replace_text_node(\DOMDocument $doc, \DOMText $textnode, array $overrides): bool {
+    private function replace_text_node(\DOMDocument $doc, \DOMText $textnode, array $overrides, string $literalmask): bool {
         $text = $textnode->data;
         if (trim($text) === '') {
             return false;
         }
 
-        $formatted = formatter::format($text, $overrides);
+        $formatted = formatter::format($text, $overrides, $literalmask);
         if (!formatter::has_changes($text, $formatted)) {
             return false;
+        }
+        if ($formatted === '') {
+            // Nothing but a literal's backtick, e.g. the "`" in "`<em>x`</em>".
+            $textnode->parentNode->removeChild($textnode);
+            return true;
         }
 
         // An override's replacement is admin-authored HTML, not something

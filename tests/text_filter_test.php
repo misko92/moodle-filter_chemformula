@@ -92,6 +92,25 @@ final class text_filter_test extends \advanced_testcase {
         $this->assertSame('<p>grade k-12 only</p>', $filter->filter('<p>grade `k-12` only</p>'));
     }
 
+    public function test_backtick_literal_pairs_across_inline_tags(): void {
+        // The editor often leaves one backtick outside an inline tag and
+        // the other inside it - the pair still resolves.
+        $filter = $this->get_filter();
+        $this->assertSame(
+            '<li><strong>2.5x10^3</strong> for negative exponents: <em>2.5x10^-3</em></li>',
+            $filter->filter('<li><strong>`2.5x10^3`</strong> for negative exponents: `<em>2.5x10^-3`</em></li>')
+        );
+        $this->assertSame('<p><em>H2O</em> H<sub>2</sub>O</p>', $filter->filter('<p>`<em>H2O</em>` H2O</p>'));
+
+        // But never across a block boundary, a line break or skipped content.
+        $this->assertSame('<p>`a</p><p>H<sub>2</sub>O`</p>', $filter->filter('<p>`a</p><p>H2O`</p>'));
+        $this->assertSame('<p>`a<br>H<sub>2</sub>O`</p>', $filter->filter('<p>`a<br>H2O`</p>'));
+        $this->assertSame(
+            '<p>`x <code>c</code> H<sub>2</sub>O`</p>',
+            $filter->filter('<p>`x <code>c</code> H2O`</p>')
+        );
+    }
+
     public function test_script_content_is_untouched(): void {
         $filter = $this->get_filter();
         $this->assertSame(

@@ -162,6 +162,15 @@ final class formatter {
      */
     private const LITERAL_PATTERN = '/`([^`\r\n]+)`/';
 
+    /** @var string {@see literal_mask()} marker: ordinary text. */
+    public const MASK_TEXT = 't';
+
+    /** @var string {@see literal_mask()} marker: inside a backtick literal. */
+    public const MASK_LITERAL = 'l';
+
+    /** @var string {@see literal_mask()} marker: a literal's backtick, which is dropped. */
+    public const MASK_DELIMITER = 'd';
+
     /**
      * Detect chemical formulas and equations in plain text and return
      * HTML with them formatted (subscripts, superscripts, isotope
@@ -177,9 +186,12 @@ final class formatter {
      *        before automatic detection, so an override can either force a
      *        specific rendering or (by mapping a token to itself) exempt it
      *        from automatic conversion entirely.
+     * @param ?string $literalmask the {@see literal_mask()} to apply to
+     *        $text, when backticks were paired over a wider context than
+     *        $text alone; computed from $text itself if omitted.
      * @return string HTML output.
      */
-    public static function format(string $text, array $overrides = []): string {
+    public static function format(string $text, array $overrides = [], ?string $literalmask = null): string {
         if ($text === '') {
             return '';
         }
@@ -187,16 +199,51 @@ final class formatter {
         // Split out the author's backtick-quoted literals first, so nothing
         // inside them can take part in any conversion (including patterns
         // that would otherwise straddle the boundary, like a hydrate dot).
-        $parts = preg_split(self::LITERAL_PATTERN, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
-        if ($parts === false) {
-            $parts = [$text];
-        }
+        $mask = $literalmask ?? self::literal_mask($text);
         $output = '';
-        foreach ($parts as $index => $part) {
-            // Odd indexes are the captured literal interiors.
-            $output .= $index % 2 ? self::escape_html($part) : self::format_segment($part, $overrides);
+        $length = strlen($text);
+        for ($start = 0; $start < $length; $start = $end) {
+            $kind = $mask[$start];
+            $end = $start + strspn($mask, $kind, $start);
+            $part = substr($text, $start, $end - $start);
+            if ($kind === self::MASK_TEXT) {
+                $output .= self::format_segment($part, $overrides);
+            } else if ($kind === self::MASK_LITERAL) {
+                $output .= self::escape_html($part);
+            }
+            // A MASK_DELIMITER backtick is dropped from the output.
         }
         return $output;
+    }
+
+    /**
+     * Classify every byte of $text as ordinary text, the interior of a
+     * backtick literal, or one of that literal's backtick delimiters (see
+     * {@see LITERAL_PATTERN}).
+     *
+     * Exposed so a caller holding text split across several pieces - e.g.
+     * the text nodes either side of an inline tag in
+     * "`<em>2.5x10^-3`</em>" - can pair backticks over the concatenated
+     * text and pass each piece its own slice of the mask to {@see format()}.
+     *
+     * @param string $text
+     * @return string one {@see MASK_TEXT}, {@see MASK_LITERAL} or
+     *         {@see MASK_DELIMITER} character per byte of $text.
+     */
+    public static function literal_mask(string $text): string {
+        $mask = str_repeat(self::MASK_TEXT, strlen($text));
+        if (preg_match_all(self::LITERAL_PATTERN, $text, $matches, PREG_OFFSET_CAPTURE)) {
+            foreach ($matches[0] as [$literal, $offset]) {
+                $length = strlen($literal);
+                $mask = substr_replace(
+                    $mask,
+                    self::MASK_DELIMITER . str_repeat(self::MASK_LITERAL, $length - 2) . self::MASK_DELIMITER,
+                    $offset,
+                    $length
+                );
+            }
+        }
+        return $mask;
     }
 
     /**
