@@ -111,12 +111,13 @@ final class formatter {
 
     /**
      * @var string Hydrate shorthand: a "." used as the hydrate separator, e.g.
-     * "CuSO4.5H2O". Requires the left side to end like a formula (a letter or
-     * closing bracket, optionally followed by subscript digits) and the right
-     * side to be an optional small coefficient immediately followed by "H2O",
-     * so sentence-ending periods, decimals and version numbers are left alone.
+     * "CuSO4.5H2O" or "CaSO4 . 2H2O". Captures the whole word before the
+     * dot (checked by {@see convert_hydrate_dots} to be a real formula, so
+     * "The end. H2O" is left alone), the separator, and an optional small
+     * coefficient immediately followed by "H2O".
      */
-    private const HYDRATE_DOT_PATTERN = '/([A-Za-z)\]]\d{0,3})\s*\.\s*((?:\d{1,2}|x)?H2O)\b/';
+    private const HYDRATE_DOT_PATTERN =
+        '/(?<![A-Za-z0-9()\[\]])([A-Za-z0-9()\[\]]+)(\s*\.\s*)((?:\d{1,2}|x)?H2O)\b/';
 
     /** @var string A candidate span: a maximal run of characters a chemistry token could be made of. */
     private const CANDIDATE_PATTERN = '/[A-Za-z0-9()\[\]+\-^\/?]+/';
@@ -374,7 +375,19 @@ final class formatter {
     private static function convert_hydrate_dots(string $text): string {
         return preg_replace_callback(
             self::HYDRATE_DOT_PATTERN,
-            static fn($match) => $match[1] . "\u{00B7}" . $match[2],
+            static function (array $match): string {
+                [$whole, $salt, $separator, $water] = $match;
+                // A full stop glued to the word and followed by a space ends
+                // a sentence ("... is CO2. H2O is ..."), it isn't a hydrate dot.
+                if (preg_match('/^\.\s+$/', $separator)) {
+                    return $whole;
+                }
+                $body = ltrim($salt, '0123456789');
+                if (!preg_match('/[A-Za-z)\]]\d{0,3}$/', $salt) || $body === '' || self::parse_formula_body($body) === null) {
+                    return $whole;
+                }
+                return $salt . "\u{00B7}" . $water;
+            },
             $text
         );
     }
@@ -738,11 +751,11 @@ final class formatter {
         $isrecognisedplaceholdershape = $isnumberfirstisotope || $iselementfirstisotope || $isnuclearsymbol;
 
         // A leading run of digits that is not itself isotope notation or a
-        // nuclear symbol's mass number is a stoichiometric coefficient and
+        // nuclear symbol's mass number - or a variable "x", as in the
+        // hydrate "Na2CO3·xH2O" - is a stoichiometric coefficient and
         // must never be treated as part of the formula token - it is left
         // untouched and the remainder re-processed.
-        if (!$isrecognisedplaceholdershape && preg_match('/^\d/', $rawspan)) {
-            preg_match('/^\d+/', $rawspan, $coefficientmatch);
+        if (!$isrecognisedplaceholdershape && preg_match('/^(?:\d+|x(?=[A-Z]))/', $rawspan, $coefficientmatch)) {
             $coefficient = $coefficientmatch[0];
             $rest = substr($rawspan, strlen($coefficient));
             if ($rest === '') {
