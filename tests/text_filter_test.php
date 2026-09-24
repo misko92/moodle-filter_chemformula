@@ -69,6 +69,29 @@ final class text_filter_test extends \advanced_testcase {
         );
     }
 
+    public function test_nolink_content_is_untouched(): void {
+        $filter = $this->get_filter();
+        $this->assertSame(
+            '<p><span class="nolink">N95 H2O</span> CO<sub>2</sub></p>',
+            $filter->filter('<p><span class="nolink">N95 H2O</span> CO2</p>')
+        );
+        // "nolink" may be one of several classes, but must be the whole class name.
+        $this->assertSame(
+            '<p><span class="a nolink b">PS4</span></p>',
+            $filter->filter('<p><span class="a nolink b">PS4</span></p>')
+        );
+        $this->assertSame(
+            '<p><span class="nolinks">H<sub>2</sub>O</span></p>',
+            $filter->filter('<p><span class="nolinks">H2O</span></p>')
+        );
+    }
+
+    public function test_backtick_literal_is_stripped_even_without_chemistry(): void {
+        // Lowercase-only text would otherwise take the no-uppercase fast path.
+        $filter = $this->get_filter();
+        $this->assertSame('<p>grade k-12 only</p>', $filter->filter('<p>grade `k-12` only</p>'));
+    }
+
     public function test_script_content_is_untouched(): void {
         $filter = $this->get_filter();
         $this->assertSame(

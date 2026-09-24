@@ -38,5 +38,7 @@ To stop a piece of text being automatically converted at all, map it to itself, 
 
 <code>NaOH = NaOH</code>
 
-Blank lines and lines starting with # are ignored.';
+Blank lines and lines starting with # are ignored.
+
+For a one-off exemption, authors can instead wrap the text in backticks where it appears, e.g. <code>`PS5`</code> - it is shown exactly as typed, without the backticks. Content inside an element with the <code>nolink</code> class is also skipped.';
 $string['privacy:metadata'] = 'The Chemical formula formatting filter does not store any personal data.';

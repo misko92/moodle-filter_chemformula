@@ -91,6 +91,27 @@ final class formatter_test extends \basic_testcase {
         $this->assertSame('(OH)', formatter::format('(OH)'));
     }
 
+    public function test_backtick_literal_is_left_as_typed(): void {
+        $this->assertSame('Model PS5 and H<sub>2</sub>O', formatter::format('Model `PS5` and H2O'));
+        $this->assertSame(
+            '6.02x10^23 vs 6.02 × 10<sup>23</sup>',
+            formatter::format('`6.02x10^23` vs 6.02x10^23')
+        );
+        $this->assertSame('U-238 vs <sup>238</sup>U', formatter::format('`U-238` vs U-238'));
+        $this->assertSame('a -&gt; b', formatter::format('`a -> b`'));
+
+        // Overrides don't apply inside a literal either.
+        $this->assertSame('N95', formatter::format('`N95`', ['N95' => '<b>N95</b>']));
+
+        // No conversion can straddle the literal's edge.
+        $this->assertSame('CuSO4.5H<sub>2</sub>O', formatter::format('`CuSO4`.5H2O'));
+
+        // Unpaired, empty or multi-line backticks are ordinary text.
+        $this->assertSame('one ` tick H<sub>2</sub>O', formatter::format('one ` tick H2O'));
+        $this->assertSame('`` H<sub>2</sub>O', formatter::format('`` H2O'));
+        $this->assertSame("`H<sub>2</sub>O\nCO<sub>2</sub>`", formatter::format("`H2O\nCO2`"));
+    }
+
     public function test_formula_next_to_an_unbalanced_prose_bracket(): void {
         // A comma (or any non-candidate character) ends the span before the
         // prose bracket's partner arrives, so the span carries a lone

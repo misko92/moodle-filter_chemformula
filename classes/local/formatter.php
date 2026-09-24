@@ -155,11 +155,20 @@ final class formatter {
     private const SCINOTATION_POWER_PATTERN = '/(?<![\w.])10\s*\^\s*([+-]?\d+)(?![\w.])/';
 
     /**
+     * @var string An author-marked literal: text wrapped in a pair of
+     * backticks on one line, e.g. "`PS5`" or "`6.02x10^23`", is shown
+     * exactly as typed with the backticks removed - an inline escape hatch
+     * for one-off false positives. An unpaired backtick is left alone.
+     */
+    private const LITERAL_PATTERN = '/`([^`\r\n]+)`/';
+
+    /**
      * Detect chemical formulas and equations in plain text and return
      * HTML with them formatted (subscripts, superscripts, isotope
      * notation, reaction arrows and scientific notation). Anything that
      * does not fully and unambiguously resolve against the real periodic
-     * table is left untouched.
+     * table is left untouched, as is anything the author wrapped in
+     * backticks (see {@see LITERAL_PATTERN}).
      *
      * @param string $text plain text input.
      * @param array<string, string> $overrides admin-configured exact-match
@@ -171,6 +180,34 @@ final class formatter {
      * @return string HTML output.
      */
     public static function format(string $text, array $overrides = []): string {
+        if ($text === '') {
+            return '';
+        }
+
+        // Split out the author's backtick-quoted literals first, so nothing
+        // inside them can take part in any conversion (including patterns
+        // that would otherwise straddle the boundary, like a hydrate dot).
+        $parts = preg_split(self::LITERAL_PATTERN, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+        if ($parts === false) {
+            $parts = [$text];
+        }
+        $output = '';
+        foreach ($parts as $index => $part) {
+            // Odd indexes are the captured literal interiors.
+            $output .= $index % 2 ? self::escape_html($part) : self::format_segment($part, $overrides);
+        }
+        return $output;
+    }
+
+    /**
+     * Format a stretch of text that contains no backtick literal; see
+     * {@see format()}.
+     *
+     * @param string $text
+     * @param array<string, string> $overrides
+     * @return string HTML output.
+     */
+    private static function format_segment(string $text, array $overrides): string {
         if ($text === '') {
             return '';
         }

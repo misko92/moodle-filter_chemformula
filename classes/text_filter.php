@@ -32,7 +32,8 @@ use filter_chemformula\local\formatter;
  * Only text nodes are ever touched, walked via DOMDocument rather than
  * regular expressions against the raw HTML, so existing markup and tag
  * attributes are never disturbed and content inside <pre>, <code>,
- * <script> or <style> is left completely alone.
+ * <script> or <style>, or inside any element with Moodle's standard
+ * "nolink" class, is left completely alone.
  *
  * @package    filter_chemformula
  * @copyright  2026 Moodle
@@ -64,8 +65,10 @@ class text_filter extends \core_filters\text_filter {
         // only markup emitted without one is scientific notation, which
         // always contains a "digit-e-digit" run or a "^". If none of those
         // is present there is nothing to do - unless an override is
-        // configured, since an override token could be anything.
-        if (empty($overrides) && !preg_match('/[A-Z]|\d[eE][-+]?\d|\^/', $text)) {
+        // configured, since an override token could be anything. A
+        // backtick may mark an author literal whose backticks still need
+        // stripping, whatever it contains.
+        if (empty($overrides) && !preg_match('/[A-Z]|\d[eE][-+]?\d|\^|`/', $text)) {
             return $text;
         }
 
@@ -125,7 +128,8 @@ class text_filter extends \core_filters\text_filter {
 
     /**
      * Recursively walk the children of $node, replacing chemistry in any
-     * text node descendant that isn't inside one of {@see SKIP_TAGS}.
+     * text node descendant that isn't inside one of {@see SKIP_TAGS} or a
+     * "nolink" element.
      *
      * @param \DOMDocument $doc
      * @param \DOMNode $node
@@ -140,7 +144,7 @@ class text_filter extends \core_filters\text_filter {
                     $changed = true;
                 }
             } else if ($child->nodeType === XML_ELEMENT_NODE) {
-                if (in_array(strtolower($child->nodeName), self::SKIP_TAGS, true)) {
+                if (in_array(strtolower($child->nodeName), self::SKIP_TAGS, true) || $this->is_nolink($child)) {
                     continue;
                 }
                 if ($this->process_children($doc, $child, $overrides)) {
@@ -149,6 +153,17 @@ class text_filter extends \core_filters\text_filter {
             }
         }
         return $changed;
+    }
+
+    /**
+     * Whether an element carries Moodle's standard "nolink" class, which
+     * authors use to opt a stretch of content out of automatic filtering.
+     *
+     * @param \DOMElement $element
+     * @return bool
+     */
+    private function is_nolink(\DOMElement $element): bool {
+        return in_array('nolink', preg_split('/\s+/', $element->getAttribute('class')), true);
     }
 
     /**
