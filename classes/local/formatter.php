@@ -582,6 +582,13 @@ final class formatter {
      * around it - matching how the same text renders when written with
      * spaces, e.g. "( SO4^2- )", which splits into separate candidate spans.
      *
+     * A second fallback handles a bracket that belongs to the surrounding
+     * prose rather than the formula - e.g. the "(" in "glucose (C6H12O6,
+     * molar mass ...)", where the comma ends the span before the matching
+     * ")" arrives. If the span's brackets don't balance and the excess
+     * bracket sits at its leading (or trailing) edge, that bracket is kept
+     * as literal text and the remainder retried.
+     *
      * @param string $rawspan
      * @return string
      */
@@ -602,6 +609,22 @@ final class formatter {
                     if (self::has_changes($inner, $formattedinner)) {
                         return self::escape_html($openchar) . $formattedinner . self::escape_html($closechar);
                     }
+                }
+            }
+
+            $opens = substr_count($rawspan, '(') + substr_count($rawspan, '[');
+            $closes = substr_count($rawspan, ')') + substr_count($rawspan, ']');
+            if ($opens > $closes && ($openchar === '(' || $openchar === '[')) {
+                $rest = substr($rawspan, 1);
+                $formattedrest = self::process_candidate_span($rest);
+                if (self::has_changes($rest, $formattedrest)) {
+                    return self::escape_html($openchar) . $formattedrest;
+                }
+            } else if ($closes > $opens && ($closechar === ')' || $closechar === ']')) {
+                $rest = substr($rawspan, 0, -1);
+                $formattedrest = self::process_candidate_span($rest);
+                if (self::has_changes($rest, $formattedrest)) {
+                    return $formattedrest . self::escape_html($closechar);
                 }
             }
         }

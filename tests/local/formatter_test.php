@@ -91,6 +91,25 @@ final class formatter_test extends \basic_testcase {
         $this->assertSame('(OH)', formatter::format('(OH)'));
     }
 
+    public function test_formula_next_to_an_unbalanced_prose_bracket(): void {
+        // A comma (or any non-candidate character) ends the span before the
+        // prose bracket's partner arrives, so the span carries a lone
+        // leading "(" or trailing ")" - kept as literal text around the
+        // formula.
+        $this->assertSame(
+            'glucose (C<sub>6</sub>H<sub>12</sub>O<sub>6</sub>, molar mass = 180.16 g/mol).',
+            formatter::format('glucose (C6H12O6, molar mass = 180.16 g/mol).')
+        );
+        $this->assertSame('(Mg(OH)<sub>2</sub>, a base)', formatter::format('(Mg(OH)2, a base)'));
+        $this->assertSame('[SO<sub>4</sub><sup>2-</sup>; x]', formatter::format('[SO4^2-; x]'));
+        $this->assertSame('(glucose, C<sub>6</sub>H<sub>12</sub>O<sub>6</sub>)', formatter::format('(glucose, C6H12O6)'));
+        $this->assertSame('((H<sub>2</sub>O, x', formatter::format('((H2O, x'));
+
+        // Nothing chemical underneath: the span is left as-is.
+        $this->assertSame('(OH, x)', formatter::format('(OH, x)'));
+        $this->assertSame('Ca(OH', formatter::format('Ca(OH'));
+    }
+
     public function test_isotopes(): void {
         $this->assertSame('<sup>238</sup>U', formatter::format('U-238'));
         $this->assertSame('<sup>238</sup>U', formatter::format('238-U'));
