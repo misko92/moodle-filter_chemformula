@@ -828,6 +828,7 @@ final class formatter {
             ) {
                 $base = $chargematch[1];
                 $charge = $chargematch[2];
+                [$base, $charge] = self::split_caretless_polyatomic_charge($base, $charge);
             }
         }
 
@@ -850,5 +851,38 @@ final class formatter {
         }
 
         return self::render_formula($parsed, $charge) . self::escape_html($statelabel);
+    }
+
+    /**
+     * Re-split a caretless "digits+sign" charge on a polyatomic ion, where
+     * the subscript and the charge magnitude run together (e.g. "SO42-").
+     *
+     * The initial split gives every trailing digit to the charge, which is
+     * right for a single element ("Mg2+", "Fe3+") but wrong for "SO42-",
+     * "NO3-" or "NH4+". For a base with 2+ element symbols (or a group),
+     * ending in something that can carry a subscript, read the digits the
+     * way they are almost always meant: one digit other than 1 is the
+     * subscript and the charge is 1 ("NO3-" -> NO3 + "-"); with two or
+     * more the last digit is the charge ("SO42-" -> SO4 + "2-"). A lone
+     * "1" stays the charge ("H3O1+"), since a subscript 1 is never
+     * written. A "]" ending is left alone, since a charge follows a
+     * complex-ion bracket directly ("[Cu(NH3)4]2+"). The caret form is
+     * always unambiguous and never reaches here.
+     *
+     * @param string $base the formula before the charge.
+     * @param string $charge the charge as first split off.
+     * @return array{0:string, 1:string} the (possibly re-split) base and charge.
+     */
+    private static function split_caretless_polyatomic_charge(string $base, string $charge): array {
+        if (!preg_match('/^(\d+)([+\-])$/', $charge, $m) || $m[1] === '1' || !preg_match('/[A-Za-z)]$/', $base)) {
+            return [$base, $charge];
+        }
+        $parsed = self::parse_formula_body($base);
+        if ($parsed === null || ($parsed['elementcount'] < 2 && !$parsed['hasgroup'])) {
+            return [$base, $charge];
+        }
+        $digits = $m[1];
+        $magnitude = strlen($digits) >= 2 ? substr($digits, -1) : '';
+        return [$base . substr($digits, 0, strlen($digits) - strlen($magnitude)), $magnitude . $m[2]];
     }
 }
