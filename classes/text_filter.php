@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+// phpcs:disable moodle.Strings.ForbiddenStrings.Found -- backticks are this filter's literal-text syntax, not shell commands.
+
 namespace filter_chemformula;
 
 use filter_chemformula\local\formatter;

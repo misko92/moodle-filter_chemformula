@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+// phpcs:disable moodle.Strings.ForbiddenStrings.Found -- backticks are this filter's literal-text syntax, not shell commands.
+
 namespace filter_chemformula;
 
 /**
@@ -75,7 +77,7 @@ final class text_filter_test extends \advanced_testcase {
             '<p><span class="nolink">N95 H2O</span> CO<sub>2</sub></p>',
             $filter->filter('<p><span class="nolink">N95 H2O</span> CO2</p>')
         );
-        // "nolink" may be one of several classes, but must be the whole class name.
+        // The "nolink" class may be one of several, but must be the whole class name.
         $this->assertSame(
             '<p><span class="a nolink b">PS4</span></p>',
             $filter->filter('<p><span class="a nolink b">PS4</span></p>')

@@ -37,6 +37,8 @@ final class parity_test extends \basic_testcase {
     private const FIXTURE = __DIR__ . '/../fixtures/parity_cases.json';
 
     /**
+     * The shared parity fixtures, which the Tiny plugin's JS formatter is tested against too.
+     *
      * @return array<string, array{0: string, 1: string}>
      */
     public static function parity_cases(): array {
@@ -48,6 +50,8 @@ final class parity_test extends \basic_testcase {
     }
 
     /**
+     * The PHP formatter renders each fixture exactly as the fixture expects.
+     *
      * @param string $text
      * @param string $html
      */
