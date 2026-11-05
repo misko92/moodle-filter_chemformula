@@ -329,6 +329,48 @@ final class formatter_test extends \basic_testcase {
         );
     }
 
+    public function test_scientific_notation_at_the_end_of_a_sentence(): void {
+        $this->assertSame('Ka is 1.8 × 10<sup>-5</sup>.', formatter::format('Ka is 1.8 x 10^-5.'));
+        $this->assertSame('About 6.02 × 10<sup>23</sup>.', formatter::format('About 6.02E23.'));
+        $this->assertSame('It rose by 10<sup>3</sup>.', formatter::format('It rose by 10^3.'));
+    }
+
+    public function test_scientific_notation_with_a_decimal_power(): void {
+        // A caret makes a decimal power of ten unambiguous, e.g. [H3O+] from a pH.
+        $this->assertSame('10<sup>-3.25</sup>', formatter::format('10^-3.25'));
+        $this->assertSame('1.8 × 10<sup>-4.5</sup>', formatter::format('1.8 x 10^-4.5'));
+        $this->assertSame('10<sup>0.7</sup>.', formatter::format('10^0.7.'));
+        // The E form stays whole-number only.
+        $this->assertSame('version 1e2.3 build', formatter::format('version 1e2.3 build'));
+    }
+
+    public function test_formulas_glued_to_square_brackets(): void {
+        // Concentrations written next to each other, or after a function name.
+        $this->assertSame(
+            'Kw = [H<sub>3</sub>O<sup>+</sup>][OH<sup>-</sup>]',
+            formatter::format('Kw = [H3O^+][OH^-]')
+        );
+        $this->assertSame('pH = -log[H<sub>3</sub>O<sup>+</sup>]', formatter::format('pH = -log[H3O^+]'));
+        $this->assertSame('Kb = [OH<sup>-</sup>]/[NH<sub>3</sub>]', formatter::format('Kb = [OH^-]/[NH3]'));
+        $this->assertSame('([H<sub>3</sub>O<sup>+</sup>])', formatter::format('([H3O^+])'));
+        // A coordination compound still parses as one formula.
+        $this->assertSame('K<sub>4</sub>[Fe(CN)<sub>6</sub>]', formatter::format('K4[Fe(CN)6]'));
+        // Pieces that aren't formulas stay as typed.
+        $this->assertSame('log([A^-]/[HA])', formatter::format('log([A^-]/[HA])'));
+        $this->assertSame('[HA]', formatter::format('[HA]'));
+    }
+
+    public function test_formulas_glued_to_a_slash_or_a_prefix(): void {
+        $this->assertSame('HOCl/OCl<sup>-</sup>', formatter::format('HOCl/OCl^-'));
+        $this->assertSame('n(CH<sub>3</sub>COOH)', formatter::format('n(CH3COOH)'));
+        // Brackets inside the outer pair.
+        $this->assertSame('(NH<sub>3</sub>(aq))', formatter::format('(NH3(aq))'));
+        // Units and nuclear notation are unaffected.
+        $this->assertSame('mol/L', formatter::format('mol/L'));
+        $this->assertStringContainsString('<sup>238</sup><sub>92</sub>', formatter::format('238/92U'));
+        $this->assertSame('(a)(b)', formatter::format('(a)(b)'));
+    }
+
     public function test_scientific_notation_false_positives_are_left_untouched(): void {
         // An "e" glued to letters is not scientific notation - and neither
         // is an element symbol that merely contains an "e".
@@ -336,8 +378,9 @@ final class formatter_test extends \basic_testcase {
         $this->assertSame('abc1e5xyz', formatter::format('abc1e5xyz'));
         $this->assertSame('Fe<sub>2</sub>O<sub>3</sub>', formatter::format('Fe2O3'));
         $this->assertSame('Ne<sub>2</sub>', formatter::format('Ne2'));
-        // A trailing "." or extra digits break the match.
+        // A decimal after the exponent breaks the match.
         $this->assertSame('version 1e2.3 build', formatter::format('version 1e2.3 build'));
+        $this->assertSame('10^5.5.3', formatter::format('10^5.5.3'));
         // An "x10" with no mantissa is left alone.
         $this->assertSame('buy 3 get x10 points', formatter::format('buy 3 get x10 points'));
         // A caret that is not a power of ten.

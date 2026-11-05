@@ -47,6 +47,17 @@ final class text_filter_test extends \advanced_testcase {
         );
     }
 
+    public function test_html5_entities_survive_next_to_chemistry(): void {
+        $filter = $this->get_filter();
+        // An HTML5-only entity such as "&approx;" must not come out as literal text.
+        $output = $filter->filter('<p>[OH^-] &approx; 0.01 M, H2O &amp; NaCl</p>');
+        $this->assertStringNotContainsString('&amp;approx;', $output);
+        $this->assertStringContainsString('H<sub>2</sub>O', $output);
+        $this->assertStringContainsString('] ≈ 0.01', $output);
+        // HTML 4 entities are kept as they were.
+        $this->assertStringContainsString('&amp; NaCl', $output);
+    }
+
     public function test_converts_full_equation_inside_nested_markup(): void {
         $filter = $this->get_filter();
         $this->assertSame(

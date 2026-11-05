@@ -99,6 +99,32 @@ class text_filter extends \core_filters\text_filter {
     }
 
     /**
+     * Rewrite named entities that only exist in HTML5 (e.g. "&approx;") as
+     * numeric references. The HTML parser only knows the HTML 4 names, so it
+     * would keep an HTML5 name as literal text, and a changed text node would
+     * then show "&approx;" on the page instead of "≈".
+     *
+     * @param string $html
+     * @return string
+     */
+    private static function numeric_html5_entities(string $html): string {
+        static $html4 = null;
+        if ($html4 === null) {
+            $html4 = array_flip(get_html_translation_table(HTML_ENTITIES, ENT_QUOTES | ENT_HTML401, 'UTF-8'));
+        }
+        return preg_replace_callback('/&[A-Za-z][A-Za-z0-9]*;/', static function (array $m) use ($html4): string {
+            if (isset($html4[$m[0]])) {
+                return $m[0];
+            }
+            $decoded = html_entity_decode($m[0], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($decoded === $m[0]) {
+                return $m[0]; // Not an entity at all.
+            }
+            return implode('', array_map(static fn(string $c): string => '&#' . mb_ord($c, 'UTF-8') . ';', mb_str_split($decoded)));
+        }, $html) ?? $html;
+    }
+
+    /**
      * Parse $html, replace chemistry in its text nodes, and return the
      * (possibly) updated HTML. If nothing was found to convert, the
      * original string is returned completely unchanged.
@@ -111,7 +137,7 @@ class text_filter extends \core_filters\text_filter {
         $doc = new \DOMDocument();
         libxml_use_internal_errors(true);
         $doc->loadHTML(
-            '<?xml encoding="UTF-8"><!DOCTYPE html><html><body>' . $html . '</body></html>',
+            '<?xml encoding="UTF-8"><!DOCTYPE html><html><body>' . self::numeric_html5_entities($html) . '</body></html>',
             LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
         );
         libxml_clear_errors();

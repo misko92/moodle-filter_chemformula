@@ -121,6 +121,13 @@ final class formatter {
     private const HYDRATE_DOT_PATTERN =
         '/(?<![A-Za-z0-9()\[\]])([A-Za-z0-9()\[\]]+)(\s*\.\s*)((?:\d{1,2}|x)?H2O)\b/';
 
+    /**
+     * @var string Where {@see split_glued_pieces} cuts a span: around a
+     * "[...]" group, around a "/", and after a lowercase prefix before a
+     * bracket (a function or quantity name such as "log" or "n").
+     */
+    private const GLUED_SEPARATOR_PATTERN = '/(\[[^\[\]]*\]|\/|^-?[a-z]+(?=[(\[]))/';
+
     /** @var string A candidate span: a maximal run of characters a chemistry token could be made of. */
     private const CANDIDATE_PATTERN = '/[A-Za-z0-9()\[\]+\-^\/?]+/';
 
@@ -141,9 +148,11 @@ final class formatter {
      * "6.02e23", "1.6e-19". A digit is required immediately before the
      * "e" so element symbols that contain one (Fe, Ne, Se, Te, ...) can
      * never match, and the surrounding lookarounds keep it from firing
-     * inside a longer word or a formula token.
+     * inside a longer word or a formula token. A full stop straight after
+     * it is fine (the end of a sentence); only a decimal digit after a "."
+     * blocks it, e.g. "10^5.5".
      */
-    private const SCINOTATION_E_PATTERN = '/(?<![\w.])(\d+(?:\.\d+)?)[eE]([+-]?\d+)(?![\w.])/';
+    private const SCINOTATION_E_PATTERN = '/(?<![\w.])(\d+(?:\.\d+)?)[eE]([+-]?\d+)(?!\w|\.\d)/';
 
     /**
      * @var string Scientific notation written out explicitly, e.g.
@@ -152,10 +161,10 @@ final class formatter {
      * "*", "\u{00D7}" or "\u{00B7}".
      */
     private const SCINOTATION_TIMES_PATTERN =
-        '/(?<![\w.])(\d+(?:\.\d+)?)\s*[xX*\x{00B7}\x{00D7}\x{22C5}]\s*10\s*\^\s*([+-]?\d+)(?![\w.])/u';
+        '/(?<![\w.])(\d+(?:\.\d+)?)\s*[xX*\x{00B7}\x{00D7}\x{22C5}]\s*10\s*\^\s*([+-]?\d+(?:\.\d+)?)(?!\w|\.\d)/u';
 
     /** @var string A bare power of ten with no mantissa, e.g. "10^23", "10^-3". */
-    private const SCINOTATION_POWER_PATTERN = '/(?<![\w.])10\s*\^\s*([+-]?\d+)(?![\w.])/';
+    private const SCINOTATION_POWER_PATTERN = '/(?<![\w.])10\s*\^\s*([+-]?\d+(?:\.\d+)?)(?!\w|\.\d)/';
 
     /**
      * @var string An author-marked literal: text wrapped in a pair of
@@ -703,7 +712,7 @@ final class formatter {
             $matchingclose = $openchar === '(' ? ')' : ($openchar === '[' ? ']' : null);
             if ($matchingclose !== null && $closechar === $matchingclose) {
                 $inner = substr($rawspan, 1, -1);
-                if ($inner !== '' && !str_contains($inner, $openchar) && !str_contains($inner, $closechar)) {
+                if ($inner !== '' && self::brackets_balance($inner)) {
                     $formattedinner = self::process_candidate_span_inner($inner);
                     if (self::has_changes($inner, $formattedinner)) {
                         return self::escape_html($openchar) . $formattedinner . self::escape_html($closechar);
@@ -728,7 +737,54 @@ final class formatter {
             }
         }
 
+        $pieces = self::split_glued_pieces($rawspan);
+        if (count($pieces) > 1) {
+            $output = '';
+            foreach ($pieces as $piece) {
+                $output .= preg_match('/[A-Z]/', $piece) ? self::process_candidate_span($piece) : self::escape_html($piece);
+            }
+            if (self::has_changes($rawspan, $output)) {
+                return $output;
+            }
+        }
+
         return $direct;
+    }
+
+    /**
+     * Split a span into pieces that can each be a formula, for formulas
+     * glued to other characters: square-bracket concentrations
+     * ("-log[H3O^+]", "[H3O^+][OH^-]", "log([A^-]/[HA])"), formulas either
+     * side of a slash ("HOCl/OCl^-") and a lowercase prefix before a
+     * bracket ("n(CH3COOH)"). Each piece is then formatted on its own. A
+     * span that is a single piece comes back unchanged.
+     *
+     * @param string $span
+     * @return string[] the pieces, in order, without empty ones.
+     */
+    private static function split_glued_pieces(string $span): array {
+        return preg_split(self::GLUED_SEPARATOR_PATTERN, $span, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [$span];
+    }
+
+    /**
+     * Whether every bracket in a string closes in order, e.g. "NH3(aq)"
+     * but not "a)(b".
+     *
+     * @param string $text
+     * @return bool
+     */
+    private static function brackets_balance(string $text): bool {
+        $stack = [];
+        foreach (str_split($text) as $char) {
+            if ($char === '(' || $char === '[') {
+                $stack[] = $char === '(' ? ')' : ']';
+            } else if ($char === ')' || $char === ']') {
+                if (array_pop($stack) !== $char) {
+                    return false;
+                }
+            }
+        }
+        return $stack === [];
     }
 
     /**
