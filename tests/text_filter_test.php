@@ -47,6 +47,20 @@ final class text_filter_test extends \advanced_testcase {
         );
     }
 
+    public function test_lowercase_only_particle_symbol_is_converted(): void {
+        // No uppercase letter at all, so the performance shortcut must still
+        // let subatomic-particle nuclear symbols through.
+        $filter = $this->get_filter();
+        $this->assertSame(
+            '<p><span class="filter-chemformula-nuclide"><sup>1</sup><sub>0</sub></span>n</p>',
+            $filter->filter('<p>1/0n</p>')
+        );
+        $this->assertSame(
+            '<p>a fast electron, <span class="filter-chemformula-nuclide"><sup>0</sup><sub>-1</sub></span>e</p>',
+            $filter->filter('<p>a fast electron, 0/-1e</p>')
+        );
+    }
+
     public function test_html5_entities_survive_next_to_chemistry(): void {
         $filter = $this->get_filter();
         // An HTML5-only entity such as "&approx;" must not come out as literal text.

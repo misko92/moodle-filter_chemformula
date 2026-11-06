@@ -71,12 +71,14 @@ class text_filter extends \core_filters\text_filter {
         // Performance shortcut: every automatically-detected chemistry
         // token starts with an uppercase element-symbol letter, and the
         // only markup emitted without one is scientific notation, which
-        // always contains a "digit-e-digit" run or a "^". If none of those
-        // is present there is nothing to do - unless an override is
+        // always contains a "digit-e-digit" run or a "^". Subatomic
+        // particle nuclear symbols ("0/-1e", "1/0n", "1/1p") are the one
+        // chemistry token with no uppercase letter. If none of those is
+        // present there is nothing to do - unless an override is
         // configured, since an override token could be anything. A
         // backtick may mark an author literal whose backticks still need
         // stripping, whatever it contains.
-        if (empty($overrides) && !preg_match('/[A-Z]|\d[eE][-+]?\d|\^|`/', $text)) {
+        if (empty($overrides) && !preg_match('/[A-Z]|\d[eE][-+]?\d|\^|`|[\d?]\/-?[\d?]+[enp]/', $text)) {
             return $text;
         }
 

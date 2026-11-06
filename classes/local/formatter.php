@@ -284,11 +284,13 @@ final class formatter {
                     $output .= $overrides[$span];
                 } else if (
                     preg_match('/[A-Z]/', $span)
-                    || preg_match('/^(?:\d+|\?)\/(?:-?\d+|\?)[enp]$/', $span)
+                    || preg_match('/^[(\[]*(?:\d+|\?)\/(?:-?\d+|\?)[enp][)\]]*\?*$/', $span)
                 ) {
                     // The uppercase check alone would miss subatomic-particle
                     // nuclear symbols (e.g. "0/-1e"), whose symbol is a bare
-                    // lowercase letter - see {@see PARTICLE_SYMBOLS}.
+                    // lowercase letter - see {@see PARTICLE_SYMBOLS}. They may
+                    // be wrapped in brackets, e.g. "(0/-1e)", or followed by
+                    // a question mark.
                     $output .= self::process_candidate_span($span);
                 } else {
                     $output .= self::escape_html($span);
@@ -808,6 +810,24 @@ final class formatter {
         $isnuclearsymbol = (bool) preg_match('/^(?:\d+|\?)\/(?:-?\d+|\?)(?:[A-Z][a-z]?|[enp])$/', $bareforisotopecheck);
         $isrecognisedplaceholdershape = $isnumberfirstisotope || $iselementfirstisotope || $isnuclearsymbol;
 
+        // A "?" is only meaningful as the unknown-number placeholder inside
+        // isotope/nuclear-symbol notation (e.g. "?-235", "235/?U"). Anywhere
+        // else it is just punctuation that happens to be glued onto a
+        // formula with no space (e.g. "What is H2O?") - such edge "?"
+        // characters are peeled off and re-processed separately, the same
+        // way a leading stoichiometric coefficient is, so they never block
+        // recognition of the chemistry underneath. This runs before the
+        // coefficient check, so "118/50Sn?" is not split into "118" + "/50Sn?".
+        if (!$isrecognisedplaceholdershape && (str_starts_with($rawspan, '?') || str_ends_with($rawspan, '?'))) {
+            $core = trim($rawspan, '?');
+            if ($core === '') {
+                return self::escape_html($rawspan);
+            }
+            $leading = str_repeat('?', strlen($rawspan) - strlen(ltrim($rawspan, '?')));
+            $trailing = str_repeat('?', strlen($rawspan) - strlen(rtrim($rawspan, '?')));
+            return self::escape_html($leading) . self::process_candidate_span($core) . self::escape_html($trailing);
+        }
+
         // A leading run of digits that is not itself isotope notation or a
         // nuclear symbol's mass number - or a variable "x", as in the
         // hydrate "Na2CO3·xH2O" - is a stoichiometric coefficient and
@@ -820,23 +840,6 @@ final class formatter {
                 return self::escape_html($rawspan);
             }
             return self::escape_html($coefficient) . self::process_candidate_span($rest);
-        }
-
-        // A "?" is only meaningful as the unknown-number placeholder inside
-        // isotope/nuclear-symbol notation (e.g. "?-235", "235/?U"). Anywhere
-        // else it is just punctuation that happens to be glued onto a
-        // formula with no space (e.g. "What is H2O?") - such edge "?"
-        // characters are peeled off and re-processed separately, the same
-        // way a leading stoichiometric coefficient is, so they never block
-        // recognition of the chemistry underneath.
-        if (!$isrecognisedplaceholdershape && (str_starts_with($rawspan, '?') || str_ends_with($rawspan, '?'))) {
-            $core = trim($rawspan, '?');
-            if ($core === '') {
-                return self::escape_html($rawspan);
-            }
-            $leading = str_repeat('?', strlen($rawspan) - strlen(ltrim($rawspan, '?')));
-            $trailing = str_repeat('?', strlen($rawspan) - strlen(rtrim($rawspan, '?')));
-            return self::escape_html($leading) . self::process_candidate_span($core) . self::escape_html($trailing);
         }
 
         $nuclearsymbol = self::try_format_nuclear_symbol($bareforisotopecheck);

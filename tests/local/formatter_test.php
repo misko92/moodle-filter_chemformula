@@ -187,6 +187,32 @@ final class formatter_test extends \basic_testcase {
         );
     }
 
+    public function test_bracketed_particle_nuclear_symbols(): void {
+        // Particle symbols are lowercase, so they need their own route past
+        // the uppercase check - including when wrapped in brackets.
+        $this->assertSame(
+            'a beta particle (<span class="filter-chemformula-nuclide"><sup>0</sup><sub>-1</sub></span>e).',
+            formatter::format('a beta particle (0/-1e).')
+        );
+        $this->assertSame(
+            '[<span class="filter-chemformula-nuclide"><sup>1</sup><sub>0</sub></span>n]',
+            formatter::format('[1/0n]')
+        );
+    }
+
+    public function test_question_mark_after_nuclear_symbol(): void {
+        // The mass number must not be mistaken for a coefficient when a
+        // question mark is glued onto the symbol.
+        $this->assertSame(
+            'atom of <span class="filter-chemformula-nuclide"><sup>118</sup><sub>50</sub></span>Sn?',
+            formatter::format('atom of 118/50Sn?')
+        );
+        $this->assertSame(
+            '<span class="filter-chemformula-nuclide"><sup>0</sup><sub>-1</sub></span>e?',
+            formatter::format('0/-1e?')
+        );
+    }
+
     public function test_nuclear_symbol_does_not_break_ordinary_slashes(): void {
         $this->assertSame('10/25/2024', formatter::format('10/25/2024'));
         $this->assertSame('and/or', formatter::format('and/or'));
