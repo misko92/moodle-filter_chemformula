@@ -108,6 +108,14 @@ final class formatter {
      */
     private const PARTICLE_SYMBOLS = ['e', 'n', 'p'];
 
+    /**
+     * @var string A subatomic particle written with its charge, as in a
+     * half-reaction or an atom-structure question: "e^-" (electron),
+     * "p^+" (proton), "n^0" (neutron). The caret is required, so ordinary
+     * words and hyphens ("e-mail", "n0") are left alone.
+     */
+    private const CHARGED_PARTICLE_PATTERN = '/^([(\[]*)([enp])\^(-|\+|0)([)\]]*)$/';
+
     /** @var string Reaction arrow shorthand, longest alternatives first. */
     private const ARROW_PATTERN = '/<=>|<->|-->|->/';
 
@@ -282,6 +290,12 @@ final class formatter {
                 $output .= self::escape_html(substr($prepared, $lastindex, $offset - $lastindex));
                 if (array_key_exists($span, $overrides)) {
                     $output .= $overrides[$span];
+                } else if (
+                    preg_match(self::CHARGED_PARTICLE_PATTERN, $span, $particle)
+                    && ['e' => '-', 'p' => '+', 'n' => '0'][$particle[2]] === $particle[3]
+                ) {
+                    // A bracket around it, e.g. "(p^+)", stays as literal text.
+                    $output .= $particle[1] . $particle[2] . '<sup>' . $particle[3] . '</sup>' . $particle[4];
                 } else if (
                     preg_match('/[A-Z]/', $span)
                     || preg_match('/^[(\[]*(?:\d+|\?)\/(?:-?\d+|\?)[enp][)\]]*\?*$/', $span)

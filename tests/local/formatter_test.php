@@ -218,6 +218,14 @@ final class formatter_test extends \basic_testcase {
         $this->assertSame('and/or', formatter::format('and/or'));
     }
 
+    public function test_charged_particles(): void {
+        $this->assertSame('Cu<sup>2+</sup> + 2 e<sup>-</sup> → Cu', formatter::format('Cu^2+ + 2 e^- → Cu'));
+        $this->assertSame('p<sup>+</sup>, n<sup>0</sup>', formatter::format('p^+, n^0'));
+        $this->assertSame('(2 mol e<sup>-</sup> / 1 mol Cu)', formatter::format('(2 mol e^- / 1 mol Cu)'));
+        // Wrong charges, no caret and longer words stay as typed.
+        $this->assertSame('e^+ n^+ p^- e-mail e^-x', formatter::format('e^+ n^+ p^- e-mail e^-x'));
+    }
+
     public function test_unknown_element_placeholder(): void {
         // Placeholder "X" stands in for an unknown element in "identify element X"
         // problems, e.g. given a mass number and atomic number, or given

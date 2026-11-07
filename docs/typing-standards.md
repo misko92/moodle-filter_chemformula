@@ -65,9 +65,10 @@ all new content.
 | `C-14` | <sup>14</sup>C | `carbon-14` written as a word stays as typed. |
 | `238/92U` | <sup>238</sup><sub>92</sub>U | Mass / atomic number, then the symbol. No spaces. |
 | `14/6C` | <sup>14</sup><sub>6</sub>C | |
-| `0/-1e` | <sup>0</sup><sub>-1</sub>e | Beta particle / electron. Plain `e-` is not formatted. |
+| `0/-1e` | <sup>0</sup><sub>-1</sub>e | Beta particle / electron in a nuclear equation. |
 | `0/1e` | <sup>0</sup><sub>1</sub>e | Positron |
 | `1/0n`  `1/1p` | <sup>1</sup><sub>0</sub>n  <sup>1</sup><sub>1</sub>p | Neutron, proton. Particle letters are lowercase. |
+| `e^-`  `p^+`  `n^0` | e<sup>-</sup>  p<sup>+</sup>  n<sup>0</sup> | Electron, proton, neutron with their charge, e.g. `Cu^2+ + 2 e^- → Cu`. Needs the caret: plain `e-` stays as typed. |
 | `235/?U` | <sup>235</sup><sub>?</sub>U | Use `?` for a blank that students fill in. |
 
 On the site, the mass and atomic numbers are stacked one above the other.
