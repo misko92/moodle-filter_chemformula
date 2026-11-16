@@ -4,9 +4,9 @@ How to type formulas, ions, equations and dimensional analysis so the site
 formats them for you. Type plain keyboard text. Don't use the editor's
 subscript or superscript buttons.
 
-This covers two filters: `filter_chemformula` (sections 1–6 and 8) and
+This covers two filters: `filter_chemformula` (sections 1–7 and 9) and
 [`filter_dimanalysis`](https://github.com/misko92/moodle-filter_dimanalysis)
-(section 7).
+(section 8).
 
 ## The short version
 
@@ -16,8 +16,9 @@ This covers two filters: `filter_chemformula` (sections 1–6 and 8) and
 4. Scientific notation: `6.02E23` or `6.02x10^23`. No space before the E.
 5. Dimensional analysis: put every conversion factor in parentheses with a slash, and join terms with `x`: `5 L x (1 mol / 22.4 L)`.
 6. Keep each dimensional analysis expression on one line. Don't press Enter partway through.
-7. If something converts that shouldn't, wrap it in backticks: `` `PS5` ``.
-8. Watch the editor highlight as you type. **Amber** means it will format as chemistry. **Blue** means it will format as dimensional analysis.
+7. Thermodynamic symbols and constants: `ΔH°f`, `ΔG°rxn`, `Ka`, `pKa`, `Ksp`. The subscript is added for you.
+8. If something converts that shouldn't, wrap it in backticks: `` `PS5` ``.
+9. Watch the editor highlight as you type. **Amber** means it will format as chemistry. **Blue** means it will format as dimensional analysis.
 
 ## 1. Chemical formulas
 
@@ -105,7 +106,24 @@ On the site, the mass and atomic numbers are stacked one above the other.
 Unit powers like `cm^3` and `m/s^2` are **not** converted. Type `cm³` with
 the character, or use the editor's superscript button for units.
 
-## 7. Dimensional analysis
+## 7. Thermodynamic symbols and equilibrium constants
+
+| You type | Students see | Notes |
+|---|---|---|
+| `ΔH°f` or `ΔHf°` | ΔH°<sub>f</sub> | The degree sign can go either side; it's shown before the f. |
+| `ΔG°rxn`, `ΔS°rxn` | ΔG°<sub>rxn</sub>, ΔS°<sub>rxn</sub> | |
+| `ΔHvap`, `ΔHfus`, `ΔHsub`, `ΔHsoln`, `ΔHcomb`, `ΔHhyd`, `ΔHlattice` | ΔH<sub>vap</sub>, ΔH<sub>fus</sub>, … | |
+| `ΔSsurr`, `ΔSsys`, `ΔSuniv` | ΔS<sub>surr</sub>, ΔS<sub>sys</sub>, ΔS<sub>univ</sub> | Works with H, G, S or E. |
+| `Ka`, `Kb`, `Kw`, `Ksp`, `Kc`, `Kp`, `Keq`, `Kf` | K<sub>a</sub>, K<sub>b</sub>, K<sub>w</sub>, K<sub>sp</sub>, … | |
+| `Ka1`, `Ka2` | K<sub>a1</sub>, K<sub>a2</sub> | Step numbers for polyprotic acids. |
+| `pKa`, `pKb`, `pKw` | pK<sub>a</sub>, pK<sub>b</sub>, pK<sub>w</sub> | |
+| `KF`, `KCl` | KF, KCl | Potassium compounds are not touched. |
+
+Use the Greek capital delta, Δ. The look-alike ∆ that Word and some keyboards
+produce works too and is shown as Δ. A plain `ΔH`, `ΔT` or `ΔEN` has no label
+and stays as typed.
+
+## 8. Dimensional analysis
 
 A chain of conversion factors is laid out as stacked fractions, with
 cancelled units struck through.
@@ -165,7 +183,7 @@ The site draws the working. It never checks the arithmetic.
 | `[da] 8.0 g NaOH x (1 mol / 40.00 g) [/da]` | Forces formatting for something the site misses, such as a single factor wrapped in parentheses. |
 | `[da nocancel] 5 L x (1 mol / 22.4 L) [/da]` | Formats without striking through units. Useful when students should do the cancelling themselves. |
 
-## 8. Stopping text from being converted
+## 9. Stopping text from being converted
 
 Some ordinary text looks like chemistry and gets formatted by mistake, for
 example `K-12`, `N95`, `PS5`, `H1N1`, `B-52` and `F-16`.
@@ -179,7 +197,7 @@ example `K-12`, `N95`, `PS5`, `H1N1`, `B-52` and `F-16`.
 Backticks also work when you want to show the raw input, for example when
 teaching notation: `` `6.02x10^23` `` stays as typed.
 
-## 9. Check before you save
+## 10. Check before you save
 
 - In the editor, recognised chemistry is highlighted **amber** and recognised dimensional analysis is highlighted **blue**. If there's no highlight, it won't format.
 - The highlight never changes your text. It only shows what will happen.

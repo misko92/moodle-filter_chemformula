@@ -171,6 +171,26 @@ final class formatter {
     private const SCINOTATION_TIMES_PATTERN =
         '/(?<![\w.])(\d+(?:\.\d+)?)\s*[xX*\x{00B7}\x{00D7}\x{22C5}]\s*10\s*\^\s*([+-]?\d+(?:\.\d+)?)(?!\w|\.\d)/u';
 
+    /**
+     * @var string A thermodynamic quantity with a subscript label, e.g.
+     * "ΔH°f", "ΔHf°", "ΔG°rxn", "ΔHvap", "ΔS°surr". The delta may be the
+     * Greek capital (U+0394) or the look-alike increment sign (U+2206),
+     * which is rendered as the Greek letter. The degree sign may sit before
+     * or after the label (not both); it is always rendered before it. The
+     * label must end the word, so "ΔHfus" is "fus", not "f" + "us".
+     */
+    private const THERMO_SYMBOL_PATTERN =
+        '/[\x{0394}\x{2206}]([HGSE])(\x{00B0}?)(lattice|comb|soln|surr|univ|vap|fus|sub|sys|hyd|rxn|f)(\x{00B0}?)(?![A-Za-z])/u';
+
+    /**
+     * @var string An equilibrium constant with a subscript label, as a
+     * whole word: "Ka", "Kb", "Kc", "Kp", "Kw", "Ksp", "Keq", "Kf", with an
+     * optional step number ("Ka1", "Ka2") and an optional "p" prefix
+     * ("pKa"). Formulas such as "KF" or "KCl" never match: the label is
+     * lowercase and nothing may follow it.
+     */
+    private const EQUILIBRIUM_CONSTANT_PATTERN = '/(?<![A-Za-z0-9])(p?)K(sp|eq|a|b|c|p|w|f)([1-3]?)(?![A-Za-z0-9])/';
+
     /** @var string A bare power of ten with no mantissa, e.g. "10^23", "10^-3". */
     private const SCINOTATION_POWER_PATTERN = '/(?<![\w.])10\s*\^\s*([+-]?\d+(?:\.\d+)?)(?!\w|\.\d)/';
 
@@ -421,7 +441,8 @@ final class formatter {
 
     /**
      * Lift every scientific-notation region ("6.02E23", "6.02x10^23",
-     * "10^23", ...) out of the text, returning the text with each one
+     * "10^23", ...), thermodynamic symbol ("ΔH°f") and equilibrium
+     * constant ("Ka", "pKa") out of the text, returning the text with each one
      * replaced by an inert sentinel plus a map of sentinel => rendered
      * HTML.
      *
@@ -459,6 +480,28 @@ final class formatter {
             $replacements[$key] = $html;
             return $key;
         };
+
+        // Thermodynamic symbols and equilibrium constants carry a <sub>, so
+        // they are lifted out the same way as scientific notation.
+        $result = preg_replace_callback(
+            self::THERMO_SYMBOL_PATTERN,
+            static fn(array $m): string => ($m[2] !== '' && $m[4] !== '') ? $m[0] : $store(
+                $m[0],
+                "\u{0394}" . $m[1] . ($m[2] . $m[4] !== '' ? "\u{00B0}" : '') . '<sub>' . $m[3] . '</sub>'
+            ),
+            $text
+        );
+        if ($result !== null) {
+            $text = $result;
+        }
+        $result = preg_replace_callback(
+            self::EQUILIBRIUM_CONSTANT_PATTERN,
+            static fn(array $m): string => $store($m[0], $m[1] . 'K<sub>' . $m[2] . $m[3] . '</sub>'),
+            $text
+        );
+        if ($result !== null) {
+            $text = $result;
+        }
 
         $mantissatimespower = static fn(array $m): string =>
             $store($m[0], $m[1] . ' ' . "\u{00D7}" . ' 10<sup>' . ltrim($m[2], '+') . '</sup>');
