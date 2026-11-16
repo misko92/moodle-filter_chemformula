@@ -226,6 +226,29 @@ final class formatter_test extends \basic_testcase {
         $this->assertSame('e^+ n^+ p^- e-mail e^-x', formatter::format('e^+ n^+ p^- e-mail e^-x'));
     }
 
+    public function test_thermodynamic_symbols(): void {
+        $this->assertSame('ΔH°<sub>f</sub>', formatter::format('ΔH°f'));
+        $this->assertSame('ΔG°<sub>rxn</sub> = -RT ln K', formatter::format('ΔG°rxn = -RT ln K'));
+        $this->assertSame('ΔH<sub>vap</sub> and ΔH<sub>fus</sub>', formatter::format('ΔHvap and ΔHfus'));
+        $this->assertSame('ΔS°<sub>surr</sub> + ΔS°<sub>sys</sub>', formatter::format('ΔS°surr + ΔS°sys'));
+        $this->assertSame('ΔH°<sub>f</sub>(products)', formatter::format('ΔH°f(products)'));
+        // The degree sign after the label moves before it; the increment sign becomes a Greek delta.
+        $this->assertSame('ΔH°<sub>f</sub>', formatter::format("\u{2206}Hf°"));
+        // No label, an unknown label, or two degree signs: left as typed.
+        $this->assertSame('ΔT, ΔH, ΔEN, ΔH°for, ΔH°f°', formatter::format('ΔT, ΔH, ΔEN, ΔH°for, ΔH°f°'));
+    }
+
+    public function test_equilibrium_constants(): void {
+        $this->assertSame('K<sub>a</sub>, K<sub>b</sub>, K<sub>w</sub>', formatter::format('Ka, Kb, Kw'));
+        $this->assertSame('K<sub>sp</sub> of AgCl', formatter::format('Ksp of AgCl'));
+        $this->assertSame('pK<sub>a</sub> = 4.74', formatter::format('pKa = 4.74'));
+        $this->assertSame('K<sub>a1</sub> &gt; K<sub>a2</sub>', formatter::format('Ka1 > Ka2'));
+        $this->assertSame('K<sub>b</sub>(NH<sub>3</sub>)', formatter::format('Kb(NH3)'));
+        $this->assertSame('K<sub>c</sub>, K<sub>p</sub>, K<sub>eq</sub>', formatter::format('Kc, Kp, Keq'));
+        // Potassium compounds and longer words are not constants.
+        $this->assertSame('KF, KCl, Kilo, AKa, Kab', formatter::format('KF, KCl, Kilo, AKa, Kab'));
+    }
+
     public function test_unknown_element_placeholder(): void {
         // Placeholder "X" stands in for an unknown element in "identify element X"
         // problems, e.g. given a mass number and atomic number, or given
@@ -364,7 +387,7 @@ final class formatter_test extends \basic_testcase {
     }
 
     public function test_scientific_notation_at_the_end_of_a_sentence(): void {
-        $this->assertSame('Ka is 1.8 × 10<sup>-5</sup>.', formatter::format('Ka is 1.8 x 10^-5.'));
+        $this->assertSame('K<sub>a</sub> is 1.8 × 10<sup>-5</sup>.', formatter::format('Ka is 1.8 x 10^-5.'));
         $this->assertSame('About 6.02 × 10<sup>23</sup>.', formatter::format('About 6.02E23.'));
         $this->assertSame('It rose by 10<sup>3</sup>.', formatter::format('It rose by 10^3.'));
     }
@@ -381,11 +404,11 @@ final class formatter_test extends \basic_testcase {
     public function test_formulas_glued_to_square_brackets(): void {
         // Concentrations written next to each other, or after a function name.
         $this->assertSame(
-            'Kw = [H<sub>3</sub>O<sup>+</sup>][OH<sup>-</sup>]',
+            'K<sub>w</sub> = [H<sub>3</sub>O<sup>+</sup>][OH<sup>-</sup>]',
             formatter::format('Kw = [H3O^+][OH^-]')
         );
         $this->assertSame('pH = -log[H<sub>3</sub>O<sup>+</sup>]', formatter::format('pH = -log[H3O^+]'));
-        $this->assertSame('Kb = [OH<sup>-</sup>]/[NH<sub>3</sub>]', formatter::format('Kb = [OH^-]/[NH3]'));
+        $this->assertSame('K<sub>b</sub> = [OH<sup>-</sup>]/[NH<sub>3</sub>]', formatter::format('Kb = [OH^-]/[NH3]'));
         $this->assertSame('([H<sub>3</sub>O<sup>+</sup>])', formatter::format('([H3O^+])'));
         // A coordination compound still parses as one formula.
         $this->assertSame('K<sub>4</sub>[Fe(CN)<sub>6</sub>]', formatter::format('K4[Fe(CN)6]'));
